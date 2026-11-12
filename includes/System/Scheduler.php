@@ -19,6 +19,9 @@ class Scheduler {
         add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_scan']);
         add_action(self::DIGEST_HOOK, [__CLASS__, 'run_weekly_digest']);
         add_action(self::CANARY_HOOK, ['\\WebCareProScanner\\Firewall\\RedirectCanaryEngine', 'run_scheduled_canary']);
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer')) {
+            \WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::register_cron_hook();
+        }
 
         // Schedule recurring Monday morning digest cron if not yet registered
         if (!wp_next_scheduled(self::DIGEST_HOOK)) {

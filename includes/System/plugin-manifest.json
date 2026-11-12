@@ -1,6 +1,6 @@
 {
   "version": "2.12.0",
-  "generated_at": "2026-11-11T20:00:04.992Z",
+  "generated_at": "2026-11-12T04:31:47.891Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -64,16 +64,16 @@
       "size": 922925
     },
     "build/global-rtl.css": {
-      "sha256": "ebf15d8b89a3087bdf397db2bd56506e596ed19da30f4db9755503795f9b4213",
-      "size": 634512
+      "sha256": "0f19a3936e9c09cbae18c175aead95d9d59b8fb14e3bf604d960686f478f88fe",
+      "size": 637810
     },
     "build/global.asset.php": {
-      "sha256": "85e489b1fc9a9c4719f4c497a1f9539b12ef259c79b984d1d7b4e9854582a578",
+      "sha256": "48f039f0bc4f434d5dd9b506939287fa4b011a59f81f0a440c7547cb318b9687",
       "size": 126
     },
     "build/global.css": {
-      "sha256": "494708512ebdf405625b0399fa019c05d2b95ecdda3986dc096f0479f6c77e5e",
-      "size": 634329
+      "sha256": "2f66bd0473b4a9a2eedba7322f38eaa8fa013f304bf4ce67f0afacf846af74a3",
+      "size": 637623
     },
     "build/global.js": {
       "sha256": "480e6f42e3b00b15107ad5c9caa96fcbd72b5283b4f84a243cc6c881d123c29b",
@@ -88,12 +88,12 @@
       "size": 2561371
     },
     "build/modular-waf.asset.php": {
-      "sha256": "b3d0d1691a958bd0b5a014b4fe78609442aea9b1e31c2900d07984439d9f833a",
+      "sha256": "d9b044b4bfd1656f69286f4d784b612f1fba7376dcf3bd9129ac86a0e169ea3b",
       "size": 163
     },
     "build/modular-waf.js": {
-      "sha256": "48e393562122878246cc045720664c542a7785e328a302c880a7a3ebaf6dca45",
-      "size": 81143
+      "sha256": "9462ff5c217159c5f4295d5cff6d6d5826058ab4b4fc777c8f452c752762be6e",
+      "size": 84004
     },
     "build/notifications.asset.php": {
       "sha256": "a1a98cdac04a2abd8a80b5c2abff2bd62996fbc0539ad71a545a656cd475d736",
@@ -136,12 +136,12 @@
       "size": 230329
     },
     "build/wizard.asset.php": {
-      "sha256": "3461dd835f243b7c070dfcaeadd5790a8b38e8129cee6f3a736df2f0ef966b16",
+      "sha256": "846f31aa1443f6b2d03850faf962b7dbd4a0c5d9b93beaf578611944ed1d5dc2",
       "size": 163
     },
     "build/wizard.js": {
-      "sha256": "33f6186ee6834ec5458c6a7c18755ee626b57ac14b0f9aed783f4776d46d60a0",
-      "size": 264616
+      "sha256": "60dbe95228c77fb43f67b5d407aadc4780911e71b1575e635470fcfddb5e72f0",
+      "size": 267181
     },
     "composer.json": {
       "sha256": "c8da82c3bdaa6143faa9a2afb4bf49271716218c26dd822743de68066b642f46",
@@ -168,8 +168,8 @@
       "size": 75832
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "2f38b776b3ba7fe0efcba2365f43fd3badc867e2161100c36934afc7dc8fd18b",
-      "size": 710371
+      "sha256": "fce2ac7c1b8b2bd71ffe29101556904fbc632f83c1e700355ba66b0ca3e6cba9",
+      "size": 713039
     },
     "includes/Auth/ApplicationPasswordSentinel.php": {
       "sha256": "754ad5f553ce557b95bd929084572474c6fb9177c5c31d9508d06a4d9564f1bd",
@@ -432,8 +432,8 @@
       "size": 74794
     },
     "includes/Firewall/Modular/SiteBehavioralAnalyzer.php": {
-      "sha256": "d6549490a9d383a9f491f773c08a171177a0c2397fd8683f8f7cf48d1c08fddb",
-      "size": 85304
+      "sha256": "810cc0fede8bfb26e61f157d2c1c1a57701522fb2e9f62913a4d20f7faafaabd",
+      "size": 93150
     },
     "includes/Firewall/OutboundEgressFirewall.php": {
       "sha256": "3e382f6069e09007ee63b17ab56645ac10d336a67cd8167b90e63dbd057e4003",
@@ -764,8 +764,8 @@
       "size": 6412
     },
     "includes/System/Scheduler.php": {
-      "sha256": "49660ef75bf7b1ecc4c0aa2ecfcf18ed43b4fbcac2a0e963e6a171e7adf561eb",
-      "size": 42861
+      "sha256": "ffb73f32cc8f61b3dd8ca2fb62117f773680d79a6b9a6b1b9f1fb35a8252a53e",
+      "size": 43059
     },
     "includes/System/ServerInfo.php": {
       "sha256": "d4f7a59e3939b24d2e0d5cdd542dc5e7de682f4c1b45cc15171a5f6a5efcdf0d",
@@ -836,8 +836,8 @@
       "size": 26630
     },
     "readme.txt": {
-      "sha256": "3312d21a2343b4a212c7b15c5c128b0525609197de7865017daaa315856fc68a",
-      "size": 37281
+      "sha256": "27ea6a0269221b933b40eb51f664a50794d96da878db434169cc47057658d573",
+      "size": 37483
     },
     "uninstall.php": {
       "sha256": "4f8d67470aee35d4a60bb0db304ed5e1407ea913eb27586bf7f75764204e2ec0",

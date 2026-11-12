@@ -26,9 +26,11 @@ if (!defined('ABSPATH')) {
 
 class SiteBehavioralAnalyzer {
 
-    const OPTION_STATE = 'webcareproscan_modular_scan_state';
-    const MAX_FILE_SIZE = 2097152; // 2MB
-    const BATCH_TIME_LIMIT = 3.5;  // 3.5 seconds per batch to avoid HTTP/proxy timeouts
+    const OPTION_STATE     = 'webcareproscan_modular_scan_state';
+    const CRON_STEP_HOOK   = 'webcareproscan_modular_scan_cron_step';
+    const TRANSIENT_LOCK   = 'webcareproscan_modular_scan_lock';
+    const MAX_FILE_SIZE    = 2097152; // 2MB
+    const BATCH_TIME_LIMIT = 2.8;     // 2.8 seconds per batch to maximize throughput safely under proxy/FPM timeouts
 
     private const AUTH_NONCE_FUNCTIONS = [
         'check_ajax_referer',
@@ -74,6 +76,9 @@ class SiteBehavioralAnalyzer {
             'started_at'         => time(),
             'started_at_micro'   => microtime(true),
             'updated_at'         => time(),
+            'updated_at_micro'   => microtime(true),
+            'active_elapsed_ms'  => 0.0,
+            'ema_files_per_sec'  => 0.0,
             'current_phase'      => 1, // 1: Census, 2: Hooks/AST, 3: REST, 4: Taint/Sinks, 5: Direct-Access, 6: Synthesis
             'total_components'   => count($components),
             'visited_components' => [],
@@ -107,6 +112,7 @@ class SiteBehavioralAnalyzer {
         ];
 
         update_option(self::OPTION_STATE, $initial_state, false);
+        self::schedule_cron_continuation(15);
 
         // Pre-save component census to Vault
         BehavioralVaultManager::write_shard(BehavioralVaultManager::SHARD_INVENTORY, $components);
@@ -135,139 +141,278 @@ class SiteBehavioralAnalyzer {
      * @param int $batch_size Maximum files to process in this chunk
      * @return array Live progress telemetry
      */
-    public static function process_batch(int $batch_size = 50): array {
-        $state = get_option(self::OPTION_STATE, null);
-        if (!$state || !is_array($state) || empty($state['status'])) {
-            return [
-                'success' => false,
-                'status'  => 'idle',
-                'message' => __('No active behavioral scan session found.', 'webcare-pro-security'),
-            ];
+    public static function process_batch(int $batch_size = 400): array {
+        if (get_transient(self::TRANSIENT_LOCK)) {
+            return self::get_scan_progress();
         }
+        set_transient(self::TRANSIENT_LOCK, 1, 12);
 
-        if ($state['status'] === 'completed') {
+        try {
+            $state = get_option(self::OPTION_STATE, null);
+            if (!$state || !is_array($state) || empty($state['status'])) {
+                return [
+                    'success' => false,
+                    'status'  => 'idle',
+                    'message' => __('No active behavioral scan session found.', 'webcare-pro-security'),
+                ];
+            }
+
+            if ($state['status'] === 'completed' || $state['status'] === 'paused') {
+                return self::format_progress_response($state);
+            }
+
+            $start_time         = microtime(true);
+            $prev_updated_micro = floatval($state['updated_at_micro'] ?? ($state['updated_at'] ?? $start_time));
+            $file_queue         = $state['file_queue'] ?? [];
+            $total_files        = count($file_queue);
+            $current_index      = intval($state['current_index'] ?? 0);
+
+            // Seed baseline active elapsed if upgrading mid-scan from a legacy pre-2.12 state lacking active_elapsed_ms
+            if (!isset($state['active_elapsed_ms'])) {
+                $legacy_rate = max(25.0, floatval($state['last_batch_rate'] ?? 50.0));
+                $state['active_elapsed_ms'] = $current_index > 0 ? round(($current_index / $legacy_rate) * 1000, 1) : 0.0;
+            }
+
+            $processed_in_this_batch = 0;
+            $endpoint_map            = $state['endpoint_map'] ?? [];
+            $findings                = $state['findings'] ?? [];
+            $counters                = $state['counters'] ?? [];
+            $visited_components      = is_array($state['visited_components'] ?? null) ? $state['visited_components'] : [];
+            $batch_limit             = max(10, min(500, $batch_size));
+
+            while ($current_index < $total_files && $processed_in_this_batch < $batch_limit) {
+                if ((microtime(true) - $start_time) >= self::BATCH_TIME_LIMIT) {
+                    break;
+                }
+
+                $file_info = $file_queue[$current_index] ?? null;
+                $current_index++;
+                $processed_in_this_batch++;
+
+                if (!$file_info || empty($file_info['path'])) {
+                    continue;
+                }
+
+                $comp_name = (string) ($file_info['component'] ?? '');
+                $comp_key  = (string) ($file_info['slug'] ?? $comp_name);
+                if ($comp_key !== '') {
+                    $visited_components[$comp_key] = true;
+                }
+
+                $state['current_component'] = $comp_name;
+                $state['current_file']      = (string) ($file_info['rel_path'] ?? basename((string) $file_info['path']));
+
+                self::analyze_php_file($file_info, $endpoint_map, $findings, $counters);
+            }
+
+            $now_micro       = microtime(true);
+            $batch_work_sec  = max(0.001, $now_micro - $start_time);
+            $idle_gap_sec    = max(0.0, $start_time - $prev_updated_micro);
+            // Only count inter-batch delay as active elapsed time if <= 12s (continuous browser/cron runner); never count overnight browser-closed sleep
+            $active_step_sec = ($idle_gap_sec <= 12.0) ? ($batch_work_sec + $idle_gap_sec) : $batch_work_sec;
+
+            $state['active_elapsed_ms'] = round(floatval($state['active_elapsed_ms']) + ($active_step_sec * 1000), 1);
+            $step_rate = $processed_in_this_batch > 0 ? ($processed_in_this_batch / max(0.02, $active_step_sec)) : 0.0;
+            $prev_ema  = floatval($state['ema_files_per_sec'] ?? 0.0);
+            if ($step_rate > 0) {
+                $state['ema_files_per_sec'] = $prev_ema > 0
+                    ? round(($step_rate * 0.45) + ($prev_ema * 0.55), 1)
+                    : round($step_rate, 1);
+            }
+
+            $state['current_index']      = $current_index;
+            $state['processed_files']    = $current_index;
+            $state['visited_components'] = $visited_components;
+            $state['last_batch_files']   = $processed_in_this_batch;
+            $state['last_batch_ms']      = (int) round($batch_work_sec * 1000);
+            $state['last_batch_rate']    = round($processed_in_this_batch / $batch_work_sec, 1);
+            $state['endpoint_map']       = $endpoint_map;
+            $state['findings']           = $findings;
+            $state['counters']           = $counters;
+            $state['updated_at']         = time();
+            $state['updated_at_micro']   = $now_micro;
+
+            // Calculate phase based on progress percentage
+            $pct = $total_files > 0 ? round(($current_index / $total_files) * 100, 1) : 100;
+            if ($pct < 15) {
+                $state['current_phase'] = 2; // Hooks & functions.php AST
+            } elseif ($pct < 45) {
+                $state['current_phase'] = 3; // REST API Attack Surface
+            } elseif ($pct < 75) {
+                $state['current_phase'] = 4; // Taint & Vulnerability Hunter
+            } elseif ($pct < 95) {
+                $state['current_phase'] = 5; // Direct-Access Script Discovery
+            } else {
+                $state['current_phase'] = 6; // Modular Firewall Synthesis
+            }
+
+            // Check if queue completed
+            if ($current_index >= $total_files) {
+                $total_duration               = max(0.1, round(floatval($state['active_elapsed_ms']) / 1000, 1));
+                $state['status']              = 'completed';
+                $state['completed_at']        = time();
+                $state['completed_at_micro']  = $now_micro;
+                $state['current_phase']       = 6;
+                $state['current_file']        = '';
+
+                // Commit Shards to Vault
+                BehavioralVaultManager::write_shard(BehavioralVaultManager::SHARD_ENDPOINTS, $endpoint_map);
+                BehavioralVaultManager::write_shard(BehavioralVaultManager::SHARD_FINDINGS, $findings);
+
+                // Synthesize Modular Firewall Rules from Vault Shards
+                $synthesized = ModularFirewallSynthesizer::synthesize_rules($state['inventory'], $endpoint_map, $findings);
+                $state['counters']['rules_synthesized'] = count($synthesized);
+
+                // Write synthesized rules to Vault Shard
+                BehavioralVaultManager::write_shard(BehavioralVaultManager::SHARD_RULES, $synthesized);
+
+                // Update Vault Meta
+                $meta = BehavioralVaultManager::read_meta();
+                $meta['last_scan']             = time();
+                $meta['scan_status']           = 'completed';
+                $meta['total_rules']           = count($synthesized);
+                $meta['counters']              = $state['counters'];
+                $meta['last_duration_seconds'] = $total_duration;
+                $meta['last_files_per_sec']    = $total_files > 0 ? round($total_files / $total_duration, 1) : 0.0;
+                BehavioralVaultManager::write_meta($meta);
+
+                self::unschedule_cron_continuation();
+
+                // Log activity event
+                if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
+                    \WebCareProScanner\System\WebCareActivityLogger::log(
+                        'behavioral_intel_scan_completed',
+                        sprintf(
+                            /* translators: %1$d: components, %2$d: rules count */
+                            __('Deep Behavioral Intelligence scan completed across %1$d components. Synthesized %2$d tailored Modular Firewall rules.', 'webcare-pro-security'),
+                            count($state['inventory']),
+                            count($synthesized)
+                        ),
+                        'info',
+                        [
+                            'components' => count($state['inventory']),
+                            'rules'      => count($synthesized),
+                            'duration'   => $total_duration,
+                        ]
+                    );
+                }
+            } else {
+                // Keep WP-Cron safety fallback armed in case user closes the browser mid-scan
+                self::schedule_cron_continuation(15);
+            }
+
+            update_option(self::OPTION_STATE, $state, false);
+
             return self::format_progress_response($state);
+        } finally {
+            delete_transient(self::TRANSIENT_LOCK);
+        }
+    }
+
+    /**
+     * Register background WP-Cron handler so scans continue smoothly if the admin closes their browser.
+     */
+    public static function register_cron_hook(): void {
+        add_action(self::CRON_STEP_HOOK, [__CLASS__, 'run_background_cron_step']);
+    }
+
+    /**
+     * Schedule a delayed WP-Cron continuation tick if one is not already queued.
+     */
+    private static function schedule_cron_continuation(int $delay_seconds = 15): void {
+        if (!wp_next_scheduled(self::CRON_STEP_HOOK)) {
+            wp_schedule_single_event(time() + max(2, $delay_seconds), self::CRON_STEP_HOOK);
+        }
+    }
+
+    /**
+     * Remove any queued background scan continuation cron events.
+     */
+    private static function unschedule_cron_continuation(): void {
+        $ts = wp_next_scheduled(self::CRON_STEP_HOOK);
+        while ($ts) {
+            wp_unschedule_event($ts, self::CRON_STEP_HOOK);
+            $ts = wp_next_scheduled(self::CRON_STEP_HOOK);
+        }
+    }
+
+    /**
+     * WP-Cron worker: advances an active 'running' scan in the background when no browser tab is polling it.
+     */
+    public static function run_background_cron_step(): void {
+        $state = get_option(self::OPTION_STATE, null);
+        if (!$state || !is_array($state) || ($state['status'] ?? '') !== 'running') {
+            self::unschedule_cron_continuation();
+            return;
         }
 
-        $start_time = microtime(true);
-        $file_queue = $state['file_queue'] ?? [];
-        $total_files = count($file_queue);
-        $current_index = intval($state['current_index'] ?? 0);
+        // If browser polled within the last 10 seconds, stay idle and check again later
+        $last_touch = floatval($state['updated_at_micro'] ?? ($state['updated_at'] ?? 0));
+        if ((microtime(true) - $last_touch) < 10.0) {
+            self::schedule_cron_continuation(15);
+            return;
+        }
 
-        $processed_in_this_batch = 0;
-        $endpoint_map = $state['endpoint_map'] ?? [];
-        $findings = $state['findings'] ?? [];
-        $counters = $state['counters'] ?? [];
-        $visited_components = is_array($state['visited_components'] ?? null) ? $state['visited_components'] : [];
-
-        while ($current_index < $total_files && $processed_in_this_batch < $batch_size) {
-            // Check time envelope
-            if ((microtime(true) - $start_time) >= self::BATCH_TIME_LIMIT) {
+        $cron_start = microtime(true);
+        $slices     = 0;
+        while ($slices < 3 && (microtime(true) - $cron_start) < 9.0) {
+            $slices++;
+            $res = self::process_batch(400);
+            if (($res['status'] ?? '') !== 'running') {
                 break;
             }
-
-            $file_info = $file_queue[$current_index] ?? null;
-            $current_index++;
-            $processed_in_this_batch++;
-
-            if (!$file_info || empty($file_info['path'])) {
-                continue;
-            }
-
-            $comp_name = (string) ($file_info['component'] ?? '');
-            $comp_key  = (string) ($file_info['slug'] ?? $comp_name);
-            if ($comp_key !== '') {
-                $visited_components[$comp_key] = true;
-            }
-
-            $state['current_component'] = $comp_name;
-            $state['current_file']      = (string) ($file_info['rel_path'] ?? basename((string) $file_info['path']));
-
-            // Analyze individual PHP file
-            self::analyze_php_file($file_info, $endpoint_map, $findings, $counters);
         }
 
-        $batch_elapsed_sec          = max(0.001, microtime(true) - $start_time);
-        $state['current_index']      = $current_index;
-        $state['processed_files']    = $current_index;
-        $state['visited_components'] = $visited_components;
-        $state['last_batch_files']   = $processed_in_this_batch;
-        $state['last_batch_ms']      = (int) round($batch_elapsed_sec * 1000);
-        $state['last_batch_rate']    = round($processed_in_this_batch / $batch_elapsed_sec, 1);
-        $state['endpoint_map']       = $endpoint_map;
-        $state['findings']           = $findings;
-        $state['counters']           = $counters;
-        $state['updated_at']         = time();
-
-        // Calculate phase based on progress percentage
-        $pct = $total_files > 0 ? round(($current_index / $total_files) * 100, 1) : 100;
-        if ($pct < 15) {
-            $state['current_phase'] = 2; // Hooks & functions.php AST
-        } elseif ($pct < 45) {
-            $state['current_phase'] = 3; // REST API Attack Surface
-        } elseif ($pct < 75) {
-            $state['current_phase'] = 4; // Taint & Vulnerability Hunter
-        } elseif ($pct < 95) {
-            $state['current_phase'] = 5; // Direct-Access Script Discovery
-        } else {
-            $state['current_phase'] = 6; // Modular Firewall Synthesis
-        }
-
-        // Check if queue completed
-        if ($current_index >= $total_files) {
-            $now_micro                    = microtime(true);
-            $started_micro                = floatval($state['started_at_micro'] ?? ($state['started_at'] ?? $now_micro));
-            $total_duration               = max(0.1, round($now_micro - $started_micro, 1));
-            $state['status']              = 'completed';
-            $state['completed_at']        = time();
-            $state['completed_at_micro']  = $now_micro;
-            $state['current_phase']       = 6;
-            $state['current_file']        = '';
-
-            // Commit Shards to Vault
-            BehavioralVaultManager::write_shard(BehavioralVaultManager::SHARD_ENDPOINTS, $endpoint_map);
-            BehavioralVaultManager::write_shard(BehavioralVaultManager::SHARD_FINDINGS, $findings);
-
-            // Synthesize Modular Firewall Rules from Vault Shards
-            $synthesized = ModularFirewallSynthesizer::synthesize_rules($state['inventory'], $endpoint_map, $findings);
-            $state['counters']['rules_synthesized'] = count($synthesized);
-
-            // Write synthesized rules to Vault Shard
-            BehavioralVaultManager::write_shard(BehavioralVaultManager::SHARD_RULES, $synthesized);
-
-            // Update Vault Meta
-            $meta = BehavioralVaultManager::read_meta();
-            $meta['last_scan'] = time();
-            $meta['scan_status'] = 'completed';
-            $meta['total_rules'] = count($synthesized);
-            $meta['counters'] = $state['counters'];
-            $meta['last_duration_seconds'] = $total_duration;
-            $meta['last_files_per_sec']    = $total_files > 0 ? round($total_files / $total_duration, 1) : 0.0;
-            BehavioralVaultManager::write_meta($meta);
-
-            // Log activity event
-            if (class_exists('\\WebCareProScanner\\System\\WebCareActivityLogger')) {
-                \WebCareProScanner\System\WebCareActivityLogger::log(
-                    'behavioral_intel_scan_completed',
-                    sprintf(
-                        /* translators: %1$d: components, %2$d: rules count */
-                        __('Deep Behavioral Intelligence scan completed across %1$d components. Synthesized %2$d tailored Modular Firewall rules.', 'webcare-pro-security'),
-                        count($state['inventory']),
-                        count($synthesized)
-                    ),
-                    'info',
-                    [
-                        'components' => count($state['inventory']),
-                        'rules'      => count($synthesized),
-                        'duration'   => time() - ($state['started_at'] ?? time()),
-                    ]
-                );
+        $after = get_option(self::OPTION_STATE, null);
+        if (is_array($after) && ($after['status'] ?? '') === 'running') {
+            self::schedule_cron_continuation(3);
+            if (function_exists('spawn_cron')) {
+                @spawn_cron();
             }
         }
+    }
 
+    /**
+     * Pause the currently running scan cleanly without losing processed progress.
+     */
+    public static function pause_scan(): array {
+        $state = get_option(self::OPTION_STATE, null);
+        if (!$state || !is_array($state) || ($state['status'] ?? '') !== 'running') {
+            return self::get_scan_progress();
+        }
+        $state['status']    = 'paused';
+        $state['paused_at'] = time();
         update_option(self::OPTION_STATE, $state, false);
-
+        self::unschedule_cron_continuation();
         return self::format_progress_response($state);
+    }
+
+    /**
+     * Resume a paused or stale scan without counting idle sleep gap against speed/elapsed telemetry.
+     */
+    public static function resume_scan(): array {
+        $state = get_option(self::OPTION_STATE, null);
+        if (!$state || !is_array($state) || !in_array($state['status'] ?? '', ['paused', 'running'], true)) {
+            return self::get_scan_progress();
+        }
+        $now_micro                 = microtime(true);
+        $state['status']           = 'running';
+        $state['updated_at']       = time();
+        $state['updated_at_micro'] = $now_micro;
+        unset($state['paused_at']);
+        update_option(self::OPTION_STATE, $state, false);
+        self::schedule_cron_continuation(15);
+        return self::format_progress_response($state);
+    }
+
+    /**
+     * Cancel and discard an in-progress/paused scan while preserving previously sealed Vault shards.
+     */
+    public static function cancel_scan(): array {
+        delete_option(self::OPTION_STATE);
+        delete_transient(self::TRANSIENT_LOCK);
+        self::unschedule_cron_continuation();
+        return self::get_scan_progress();
     }
 
     /**
@@ -344,16 +489,28 @@ class SiteBehavioralAnalyzer {
             ? min(100, round(($processed / $raw_total) * 100, 1))
             : ($is_completed ? 100 : 0);
 
-        $started_micro = floatval($state['started_at_micro'] ?? ($state['started_at'] ?? time()));
-        $end_micro     = $is_completed
-            ? floatval($state['completed_at_micro'] ?? ($state['completed_at'] ?? microtime(true)))
-            : microtime(true);
-        $elapsed_sec   = max(0.0, round($end_micro - $started_micro, 1));
-
         $last_batch_rate = floatval($state['last_batch_rate'] ?? 0.0);
-        $files_per_sec   = ($processed > 0 && $elapsed_sec >= 0.2)
-            ? round($processed / $elapsed_sec, 1)
-            : $last_batch_rate;
+        if (isset($state['active_elapsed_ms'])) {
+            $elapsed_sec = max(0.0, round(floatval($state['active_elapsed_ms']) / 1000, 1));
+        } else {
+            $started_micro = floatval($state['started_at_micro'] ?? ($state['started_at'] ?? time()));
+            $end_micro     = $is_completed
+                ? floatval($state['completed_at_micro'] ?? ($state['completed_at'] ?? microtime(true)))
+                : microtime(true);
+            $raw_wall = max(0.0, $end_micro - $started_micro);
+            $updated_age = max(0, time() - intval($state['updated_at'] ?? time()));
+            // Heal pre-2.12 legacy sessions paused overnight instead of dividing across idle wall clock
+            if (!$is_completed && ($updated_age > 90 || $raw_wall > 300) && $last_batch_rate > 0 && $processed > 0) {
+                $elapsed_sec = round($processed / max(20.0, $last_batch_rate), 1);
+            } else {
+                $elapsed_sec = round($raw_wall, 1);
+            }
+        }
+
+        $ema_rate      = floatval($state['ema_files_per_sec'] ?? 0.0);
+        $files_per_sec = $ema_rate > 0
+            ? round($ema_rate, 1)
+            : (($processed > 0 && $elapsed_sec >= 0.2) ? round($processed / $elapsed_sec, 1) : $last_batch_rate);
 
         $eta_seconds = null;
         if ($is_completed) {
@@ -369,11 +526,15 @@ class SiteBehavioralAnalyzer {
 
         $phase_labels  = self::get_phase_labels();
         $current_phase = max(1, min(6, intval($state['current_phase'] ?? 1)));
+        $updated_at    = intval($state['updated_at'] ?? time());
+        $is_stale      = ($status === 'running') && ((time() - $updated_at) > 120);
 
         return [
             'success'                     => true,
             'session_id'                  => $state['session_id'] ?? '',
             'status'                      => $status,
+            'is_stale'                    => $is_stale,
+            'background_cron_scheduled'   => (bool) wp_next_scheduled(self::CRON_STEP_HOOK),
             'progress_pct'                => $pct,
             'current_phase'               => $current_phase,
             'phase_label'                 => $phase_labels[$current_phase] ?? '',
@@ -390,6 +551,7 @@ class SiteBehavioralAnalyzer {
             'last_batch_files'            => intval($state['last_batch_files'] ?? 0),
             'last_batch_ms'               => intval($state['last_batch_ms'] ?? 0),
             'started_at'                  => intval($state['started_at'] ?? 0),
+            'updated_at'                  => $updated_at,
             'completed_at'                => $is_completed ? intval($state['completed_at'] ?? 0) : null,
             'elapsed_seconds'             => $elapsed_sec,
             'estimated_remaining_seconds' => $eta_seconds,

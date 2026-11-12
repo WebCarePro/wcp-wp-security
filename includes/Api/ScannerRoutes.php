@@ -1961,6 +1961,24 @@ class ScannerRoutes {
             'permission_callback' => $permission,
         ]);
 
+        register_rest_route(self::NAMESPACE, '/modular-waf/scan/pause', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'pause_modular_scan'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/scan/resume', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'resume_modular_scan'],
+            'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/modular-waf/scan/cancel', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'cancel_modular_scan'],
+            'permission_callback' => $permission,
+        ]);
+
         register_rest_route(self::NAMESPACE, '/modular-waf/status', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_modular_waf_status'],
@@ -2872,9 +2890,48 @@ class ScannerRoutes {
         }
 
         $params = $request->get_json_params() ?: [];
-        $batch_size = max(10, min(100, intval($params['batch_size'] ?? 50)));
+        $batch_size = max(10, min(500, intval($params['batch_size'] ?? 400)));
         $result = \WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::process_batch($batch_size);
         return new \WP_REST_Response($result, 200);
+    }
+
+    /**
+     * Pause an active behavioral AST scan session cleanly.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function pause_modular_scan(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Behavioral analyzer engine unavailable.', 'webcare-pro-security')], 500);
+        }
+        return new \WP_REST_Response(\WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::pause_scan(), 200);
+    }
+
+    /**
+     * Resume a paused or stale behavioral AST scan session.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function resume_modular_scan(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Behavioral analyzer engine unavailable.', 'webcare-pro-security')], 500);
+        }
+        return new \WP_REST_Response(\WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::resume_scan(), 200);
+    }
+
+    /**
+     * Cancel and discard an in-progress behavioral AST scan session while preserving previously sealed Vault rules.
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
+     */
+    public static function cancel_modular_scan(\WP_REST_Request $request) {
+        if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Behavioral analyzer engine unavailable.', 'webcare-pro-security')], 500);
+        }
+        return new \WP_REST_Response(\WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::cancel_scan(), 200);
     }
 
     /**
