@@ -56,6 +56,7 @@
     - Completely rebuilt the Visual Rule Studio Action & Priority sections with full-width responsive controls, interactive Enforcement Action tiles, and a visual Execution Order Pipeline showing every existing rule's `ID #` + Rule Name (`existing_custom_rules` via `/modular-waf/fields`) with 1-click `Place Before` / `Place After` controls.
     - Streamlined `VisualRuleBuilderPanel.tsx` and `SmartConditionInputs.tsx` into a minimal Cloudflare-style stacked card workflow (`Rule name`, `When incoming requests match...` with blank `Select...` defaults and integrated `Expression Preview` / `Edit expression`, `Then take action...`, `Execution order` with `ID #` + Rule Name options, and `Status`), removing example placeholders so all inputs start clean.
     - Fixed `CountrySelector` in `SmartConditionInputs.tsx` so typing the first 2 letters of a country name (e.g. `ba` for Bangladesh) no longer auto-converts mid-keystroke into a 2-letter ISO code (`BA` Bosnia), and ranked prefix/exact-name matches above substring matches.
+    - Wrapped `ModularFirewallStudio` (`src/entries/modular-waf.tsx`) with the shared `WebCareShell` (`activeTab="modular_waf"`) so `webcare-pro-modular-waf` matches the plugin home interface with the unified top navigation, Dark/White Mode toggle, and Pro Engineer / Simple Owner switcher, and defined `--webcare-bg-canvas` light/dark tokens in `src/index.css`.
 
 v:2.11.0 - 2026-11-11
 - Enterprise Setup Studio (SOC Command Glass Architecture):
