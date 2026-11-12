@@ -54,6 +54,7 @@
     - Enriched `GET /modular-waf/fields` (`ScannerRoutes::get_modular_visual_fields()`) with live auto-detected `installed_components` (plugins, MU-plugins, themes + base URL paths), WordPress `roles`, `current_ip`, and `discovered_endpoints`.
     - Built searchable comboboxes and smart inputs (`src/components/visual-rule/SmartConditionInputs.tsx`, `src/utils/countryCatalog.ts`, Light/Dark CSS in `src/index.css`) supporting typing Country names or ISO-2 codes (single & multi-chip), auto-detected Plugin/Theme slug & URL pickers alongside manual entry, quick recipes bar, and plain-English live rule summaries.
     - Completely rebuilt the Visual Rule Studio Action & Priority sections with full-width responsive controls, interactive Enforcement Action tiles, and a visual Execution Order Pipeline showing every existing rule's `ID #` + Rule Name (`existing_custom_rules` via `/modular-waf/fields`) with 1-click `Place Before` / `Place After` controls.
+    - Streamlined `VisualRuleBuilderPanel.tsx` and `SmartConditionInputs.tsx` into a minimal Cloudflare-style stacked card workflow (`Rule name`, `When incoming requests match...` with blank `Select...` defaults and integrated `Expression Preview` / `Edit expression`, `Then take action...`, `Execution order` with `ID #` + Rule Name options, and `Status`), removing example placeholders so all inputs start clean.
 
 v:2.11.0 - 2026-11-11
 - Enterprise Setup Studio (SOC Command Glass Architecture):
