@@ -106,36 +106,35 @@ class RuntimeSqlRaspEngine implements SecurityModuleInterface {
 
     /**
      * Evaluate whether current request satisfies the strict 3-gate guest plugin surface check.
+     * Always evaluates zero-cost URI and runtime checks BEFORE invoking WordPress user/DB lookups.
      */
     public static function is_guest_plugin_surface(): bool {
         if ((defined('WP_CLI') && WP_CLI) || (function_exists('wp_doing_cron') && wp_doing_cron()) || (function_exists('wp_installing') && wp_installing())) {
             return false;
         }
-        if (function_exists('is_user_logged_in') && is_user_logged_in()) {
-            return false;
-        }
-        if (class_exists(FirewallEngine::class) && FirewallEngine::is_trusted_plugin_check_or_cli_runtime()) {
-            return false;
-        }
 
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only surface routing check inside RASP guard
         $uri = strtolower((string) wp_unslash($_SERVER['REQUEST_URI'] ?? ''));
-        if (
+        $is_target_surface = (
             strpos($uri, 'admin-ajax.php') !== false
             || strpos($uri, 'admin-post.php') !== false
             || strpos($uri, 'rest_route=') !== false
-        ) {
-            return true;
-        }
-        if (strpos($uri, '/wp-json/') !== false) {
-            // Skip trusted core internal read-only endpoints and WebCare's own admin namespace
-            if (strpos($uri, '/wp-json/webcare-pro-security/') !== false) {
-                return false;
-            }
-            return true;
+            || (strpos($uri, '/wp-json/') !== false && strpos($uri, '/wp-json/webcare-pro-security/') === false)
+        );
+        if (!$is_target_surface) {
+            return false;
         }
 
-        return false;
+        if (function_exists('is_user_logged_in') && is_user_logged_in()) {
+            return false;
+        }
+        if (class_exists(FirewallEngine::class)) {
+            if (FirewallEngine::is_authenticated_administrator() || FirewallEngine::is_trusted_plugin_check_or_cli_runtime()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -205,17 +204,21 @@ class RuntimeSqlRaspEngine implements SecurityModuleInterface {
      * @return string
      */
     public static function inspect_guest_sql_query(string $query): string {
-        if (self::$in_guard || !self::is_guest_plugin_surface()) {
-            return $query;
-        }
-
-        $anomaly = self::detect_sql_anomaly($query);
-        if ($anomaly === null) {
+        if (self::$in_guard) {
             return $query;
         }
 
         self::$in_guard = true;
         try {
+            if (!self::is_guest_plugin_surface()) {
+                return $query;
+            }
+
+            $anomaly = self::detect_sql_anomaly($query);
+            if ($anomaly === null) {
+                return $query;
+            }
+
             $caller = self::resolve_culprit_caller();
             $ip     = class_exists(FirewallEngine::class) ? FirewallEngine::get_client_ip() : '127.0.0.1';
             $uri    = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';

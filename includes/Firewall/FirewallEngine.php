@@ -8893,7 +8893,7 @@ class FirewallEngine {
      * (WP-CLI, cron, WordPress installer, internal canary bypass, or Plugin Check test harness).
      * Never trusts attacker-controlled HTTP_REFERER or raw unauthenticated $_REQUEST['action'].
      */
-    private static function is_trusted_plugin_check_or_cli_runtime(): bool {
+    public static function is_trusted_plugin_check_or_cli_runtime(): bool {
         if (defined('WP_CLI') && WP_CLI) {
             return true;
         }
