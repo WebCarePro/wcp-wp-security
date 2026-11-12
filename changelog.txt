@@ -53,6 +53,7 @@
     - Assigned permanent unique sequential numeric IDs (`rule_number`: `ID #1`, `ID #2`, ...) and mutable priority ranks (`Order #1..N`) to every custom rule (`webcareproscan_modular_custom_rule_seq`), added Cloudflare-style placement selection (`First`, `Last`, `Custom Order #`) in `VisualRuleBuilderPanel.tsx`, and added drag-and-drop + Up/Down/Order # reordering with explicit `Save Rule Order` / `Reset Order` (`POST /modular-waf/rule/custom/reorder`) in `ModularFirewallStudio.tsx`.
     - Enriched `GET /modular-waf/fields` (`ScannerRoutes::get_modular_visual_fields()`) with live auto-detected `installed_components` (plugins, MU-plugins, themes + base URL paths), WordPress `roles`, `current_ip`, and `discovered_endpoints`.
     - Built searchable comboboxes and smart inputs (`src/components/visual-rule/SmartConditionInputs.tsx`, `src/utils/countryCatalog.ts`, Light/Dark CSS in `src/index.css`) supporting typing Country names or ISO-2 codes (single & multi-chip), auto-detected Plugin/Theme slug & URL pickers alongside manual entry, quick recipes bar, and plain-English live rule summaries.
+    - Completely rebuilt the Visual Rule Studio Action & Priority sections with full-width responsive controls, interactive Enforcement Action tiles, and a visual Execution Order Pipeline showing every existing rule's `ID #` + Rule Name (`existing_custom_rules` via `/modular-waf/fields`) with 1-click `Place Before` / `Place After` controls.
 
 v:2.11.0 - 2026-11-11
 - Enterprise Setup Studio (SOC Command Glass Architecture):

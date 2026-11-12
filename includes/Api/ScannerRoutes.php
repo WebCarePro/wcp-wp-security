@@ -3628,28 +3628,38 @@ class ScannerRoutes {
             }
         }
 
-        $custom_rules_count = 0;
+        $custom_rules_count    = 0;
+        $existing_custom_rules = [];
         if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
             foreach (\WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_active_rules() as $ar) {
                 if (!empty($ar['is_custom']) || ($ar['category'] ?? '') === 'custom') {
                     $custom_rules_count++;
+                    $existing_custom_rules[] = [
+                        'id'           => (string) ($ar['id'] ?? ''),
+                        'rule_number'  => (int) ($ar['rule_number'] ?? $custom_rules_count),
+                        'priority'     => (int) ($ar['priority'] ?? $custom_rules_count),
+                        'title'        => (string) ($ar['title'] ?? ($ar['id'] ?? 'Custom Rule')),
+                        'action_type'  => (string) ($ar['action_type'] ?? 'block'),
+                        'current_mode' => (string) ($ar['current_mode'] ?? 'enforce'),
+                    ];
                 }
             }
         }
 
         return new \WP_REST_Response([
-            'success'              => true,
-            'fields'               => $fields,
-            'installed_components' => $components,
-            'roles'                => $roles,
-            'current_ip'           => class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            'success'               => true,
+            'fields'                => $fields,
+            'installed_components'  => $components,
+            'roles'                 => $roles,
+            'current_ip'            => class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
                 ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
                 : '',
-            'discovered_endpoints' => [
+            'discovered_endpoints'  => [
                 'ajax_actions' => array_values(array_unique($ajax_actions)),
                 'rest_routes'  => array_values(array_unique($rest_routes)),
             ],
-            'custom_rules_count'   => $custom_rules_count,
+            'custom_rules_count'    => $custom_rules_count,
+            'existing_custom_rules' => $existing_custom_rules,
         ], 200);
     }
 
