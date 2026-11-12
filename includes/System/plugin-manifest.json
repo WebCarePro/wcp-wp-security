@@ -1,6 +1,6 @@
 {
   "version": "2.12.0",
-  "generated_at": "2026-11-12T19:49:13.303Z",
+  "generated_at": "2026-11-12T20:44:45.717Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -176,8 +176,8 @@
       "size": 9420
     },
     "includes/Api/MCPAgentService.php": {
-      "sha256": "a565bfdd9710a5f6f9e64240a975f27ee594a274dd779aa1c995142769110236",
-      "size": 98693
+      "sha256": "c64a4751344e4820574d108ae349bc3a1978dd7ba3b27a14331477b798d4f18d",
+      "size": 98897
     },
     "includes/Api/MCPAntiLockoutValidator.php": {
       "sha256": "947b224dbf63d5373f569e701dccdac51bcc0fe772ff34127e3b6979e9bae0b1",
@@ -192,8 +192,8 @@
       "size": 10344
     },
     "includes/Api/MCPSnapshotManager.php": {
-      "sha256": "b7675fa0eb12863ab09eb8f819f2661b1b2038c5924d06fac91f1c66b0efa259",
-      "size": 10964
+      "sha256": "35700ef2edaaa2bb0379cb9b15c5c5c2b2ba2adc48a256756e954bf2d8ba889e",
+      "size": 11237
     },
     "includes/Api/ScannerRoutes.php": {
       "sha256": "16f559b66e243c59969e576f602901aff7c2b24514b59e565a7aced9de587a75",
@@ -484,8 +484,8 @@
       "size": 51311
     },
     "includes/Firewall/Modular/ModularFirewallSynthesizer.php": {
-      "sha256": "867ac732df0f05e1212282b141ff52797b2330df06aad3c32b1524af51bec77f",
-      "size": 97556
+      "sha256": "e87dd67a3cb748514f21961f9ab17eb0f94e10de3a93338a70c0e122db3154d4",
+      "size": 98700
     },
     "includes/Firewall/Modular/SiteBehavioralAnalyzer.php": {
       "sha256": "c92c4636037957bc1b7b871da2851fa4680562829ade6269f2ca0eaf2ec89879",

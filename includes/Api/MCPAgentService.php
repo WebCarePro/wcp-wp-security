@@ -984,7 +984,7 @@ class MCPAgentService {
         $needs_gate = ($policy === 'confirmation_required');
         if ($dynamic_tier >= 3 && !empty($catalog_map[$tool]['isMutating'])) {
             // Tier 3/4 sensitive payloads auto-escalate to confirmation gate unless tool policy explicitly opted in AND tier < 4
-            if ($dynamic_tier >= 4 || !empty($preflight['force_stage'])) {
+            if ($dynamic_tier >= 3 || !empty($preflight['force_stage'])) {
                 $needs_gate = true;
             }
         }
@@ -2113,6 +2113,10 @@ class MCPAgentService {
             }
             if ((int) $lock_check['escalate_tier'] > 0) {
                 $out['escalate_tier'] = (int) $lock_check['escalate_tier'];
+                $out['force_stage']   = true;
+            }
+            if (($args['action_type'] ?? '') === 'allow') {
+                $out['escalate_tier'] = max((int) ($out['escalate_tier'] ?? 0), 3);
                 $out['force_stage']   = true;
             }
             $out['warnings'] = $lock_check['warnings'];

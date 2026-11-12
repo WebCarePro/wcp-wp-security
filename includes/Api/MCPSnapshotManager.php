@@ -229,6 +229,11 @@ class MCPSnapshotManager {
         $list[$target_idx]['restored_at'] = time();
         update_option(self::OPTION_KEY, $list, false);
 
+        // Recompile standalone Preload Micro-WAF so undo immediately synchronizes micro-waf-compiled.php on disk
+        if (class_exists('\\WebCareProScanner\\Firewall\\MicroWafCompiler')) {
+            \WebCareProScanner\Firewall\MicroWafCompiler::compile();
+        }
+
         if (class_exists(WebCareActivityLogger::class)) {
             WebCareActivityLogger::log(
                 'mcp_snapshot_restored',

@@ -1439,55 +1439,73 @@ class ModularFirewallSynthesizer {
                 }
             }
 
-            // Category 4: upload_guard (Inspect multipart $_FILES for executable extensions / PHP tags)
+            // Category 4: upload_guard (Inspect multipart $_FILES for executable extensions / PHP tags across all dimensions)
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection auditing uploaded file metadata & headers
             if ($cat === 'upload_guard' && !empty($_FILES)) {
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection of incoming $_FILES payload
-                foreach ($_FILES as $file_item) {
-                    $names   = is_array($file_item['name'] ?? null) ? $file_item['name'] : [($file_item['name'] ?? '')];
-                    $tmp_arr = is_array($file_item['tmp_name'] ?? null) ? $file_item['tmp_name'] : [($file_item['tmp_name'] ?? '')];
-                    foreach ($names as $idx => $fname) {
-                        $fname_l = strtolower((string) $fname);
-                        if (preg_match('/\.(?:php\d*|phtml|phar|pgif|htaccess|user\.ini|sh|pl|py|cgi|asp|aspx)\b/i', $fname_l)) {
+                $flat_files = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection of incoming $_FILES payload
+                    ? \WebCareProScanner\Firewall\FirewallEngine::flatten_uploaded_files($_FILES)
+                    : [];
+                if (empty($flat_files)) {
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Runtime WAF inspection of incoming $_FILES payload
+                    foreach ($_FILES as $file_item) {
+                        $names   = is_array($file_item['name'] ?? null) ? $file_item['name'] : [($file_item['name'] ?? '')];
+                        $tmp_arr = is_array($file_item['tmp_name'] ?? null) ? $file_item['tmp_name'] : [($file_item['tmp_name'] ?? '')];
+                        foreach ($names as $idx => $fname) {
+                            $flat_files[] = [
+                                'name'     => (string) $fname,
+                                'tmp_name' => (string) ($tmp_arr[$idx] ?? ''),
+                            ];
+                        }
+                    }
+                }
+
+                foreach ($flat_files as $f_item) {
+                    $fname   = (string) ($f_item['name'] ?? '');
+                    $fname_l = strtolower($fname);
+                    if ($fname_l !== '' && preg_match('/\.(?:php\d*|phtml|phar|pgif|htaccess|user\.ini|sh|pl|py|cgi|asp|aspx)\b/i', $fname_l)) {
+                        return self::build_violation(
+                            $r,
+                            sprintf('Dangerous executable upload filename "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
+                            $should_block,
+                            'critical'
+                        );
+                    }
+                    $tmp_f = (string) ($f_item['tmp_name'] ?? '');
+                    if ($tmp_f !== '' && is_uploaded_file($tmp_f)) {
+                        $head = (string) @file_get_contents($tmp_f, false, null, 0, 4096);
+                        if (preg_match('/<\?(?:php|=)|__HALT_COMPILER\s*\(\s*\)/i', $head)) {
                             return self::build_violation(
                                 $r,
-                                sprintf('Dangerous executable upload filename "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
+                                sprintf('Embedded PHP/PHAR payload inside uploaded file "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
                                 $should_block,
                                 'critical'
                             );
-                        }
-                        $tmp_f = (string) ($tmp_arr[$idx] ?? '');
-                        if ($tmp_f !== '' && is_uploaded_file($tmp_f)) {
-                            $head = (string) @file_get_contents($tmp_f, false, null, 0, 4096);
-                            if (preg_match('/<\?(?:php|=)|__HALT_COMPILER\s*\(\s*\)/i', $head)) {
-                                return self::build_violation(
-                                    $r,
-                                    sprintf('Embedded PHP/PHAR payload inside uploaded file "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
-                                    $should_block,
-                                    'critical'
-                                );
-                            }
                         }
                     }
                 }
             }
 
-            // Category 5: egress_lock (SSRF parameter inspection for internal/metadata targets)
+            // Category 5: egress_lock (SSRF parameter inspection for internal/metadata targets across query, POST & JSON body)
             if ($cat === 'egress_lock' && !empty($r['target_param'])) {
                 $param_keys = array_filter(array_map('trim', explode(',', strtolower((string) $r['target_param']))));
                 foreach ($param_keys as $pk) {
+                    $val = '';
                     // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch SSRF inspection on untrusted URL query/body parameters
                     if (isset($_REQUEST[$pk]) && is_string($_REQUEST[$pk])) {
                         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch SSRF inspection on untrusted URL query/body parameters
                         $val = strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$pk]))));
-                        if (preg_match('#^(?:file|gopher|dict|ftp|ldap|tftp)://|(?:\b169\.254\.169\.254\b|\b127\.\d+\.\d+\.\d+\b|\blocalhost\b|\b0\.0\.0\.0\b|\[::1\]|\bmetadata\.google\.internal\b)#i', $val)) {
-                            return self::build_violation(
-                                $r,
-                                sprintf('SSRF target in parameter "%s" blocked by Modular Egress Lock [%s].', $pk, $r['id']),
-                                $should_block,
-                                'critical'
-                            );
-                        }
+                    } elseif (is_array($raw_json_data) && isset($raw_json_data[$pk]) && is_string($raw_json_data[$pk])) {
+                        $val = strtolower(trim(sanitize_text_field((string) $raw_json_data[$pk])));
+                    }
+                    if ($val !== '' && preg_match('#^(?:file|gopher|dict|ftp|ldap|tftp)://|(?:\b169\.254\.169\.254\b|\b127\.\d+\.\d+\.\d+\b|\blocalhost\b|\b0\.0\.0\.0\b|\[::1\]|\bmetadata\.google\.internal\b)#i', $val)) {
+                        return self::build_violation(
+                            $r,
+                            sprintf('SSRF target in parameter "%s" blocked by Modular Egress Lock [%s].', $pk, $r['id']),
+                            $should_block,
+                            'critical'
+                        );
                     }
                 }
             }

@@ -72,6 +72,11 @@
   * Migrated 6 Remaining Raw maybe_unserialize() SQL Calls to SerializedDataScanner::safe_unserialize() (allowed_classes => false) across ApplicationPasswordSentinel, WebAuthnManager, EphemeralAdminEngine, UserRemediationManager, and FirewallEngine.
   * Enhanced Weekly Peace-of-Mind Security Digest & Timezone Drift Prevention: honored $force = true in Scheduler::run_weekly_digest() during manual "Run Now" triggers in Cron Control Center, and anchored weekly digest scheduling to wp_timezone() instead of server UTC.
   * Added Fatal Shutdown Interception & Self-Healing Orphan Recovery in CronExecutionLogger: registered a shutdown function to capture unhandled PHP fatal errors or timeouts into failed execution logs, and added automatic recovery for stale running rows.
+  * Refined MCP Tier 3+ Auto-Staging, Snapshot Preload Recompilation & Deep Payload Coverage:
+    - Enforced mandatory staged confirmation on any dynamic Tier 3+ tool escalation in MCPAgentService (guaranteeing custom visual allow rules always require administrator review in WP Admin even under autonomous safe_operator presets).
+    - Added automatic MicroWafCompiler::compile() pre-boot recompilation to MCPSnapshotManager::restore_snapshot(), ensuring 1-click snapshot undo immediately reflects restored firewall rules on disk.
+    - Integrated FirewallEngine::flatten_uploaded_files() in ModularFirewallSynthesizer Category 4 (upload_guard) to inspect multi-dimensional $_FILES hierarchies for dangerous executable extensions and embedded PHP/PHAR byte sequences.
+    - Added $raw_json_data fallback parameter lookup in Category 5 (egress_lock), intercepting SSRF targets submitted inside application/json request bodies.
 
 v:2.11.0 - 2026-11-11
 - Enterprise Setup Studio (SOC Command Glass Architecture):
