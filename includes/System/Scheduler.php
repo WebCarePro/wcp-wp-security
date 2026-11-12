@@ -16,57 +16,44 @@ class Scheduler {
     const CANARY_HOOK = 'webcareproscan_redirect_canary_event';
 
     public static function register() {
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            \WebCareProScanner\System\Cron\CronControlCenter::register_filters();
+
+            add_action(self::CRON_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_HOOK, 'wp_cron');
+            });
+            add_action(self::DIGEST_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::DIGEST_HOOK, 'wp_cron');
+            });
+            add_action(self::CANARY_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CANARY_HOOK, 'wp_cron');
+            });
+
+            if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer')) {
+                \WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::register_cron_hook();
+            }
+
+            add_action('init', static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::DIGEST_HOOK, 0, 'weekly');
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::CANARY_HOOK, 60, 'webcare_15min');
+            }, 20);
+            return;
+        }
+
         add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_scan']);
         add_action(self::DIGEST_HOOK, [__CLASS__, 'run_weekly_digest']);
         add_action(self::CANARY_HOOK, ['\\WebCareProScanner\\Firewall\\RedirectCanaryEngine', 'run_scheduled_canary']);
         if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\SiteBehavioralAnalyzer')) {
             \WebCareProScanner\Firewall\Modular\SiteBehavioralAnalyzer::register_cron_hook();
         }
-
-        // Schedule recurring Monday morning digest cron if not yet registered
-        if (!wp_next_scheduled(self::DIGEST_HOOK)) {
-            // Find next Monday 08:00 AM local site time
-            $next_monday = strtotime('next monday 08:00:00');
-            if ($next_monday !== false) {
-                wp_schedule_event($next_monday, 'weekly', self::DIGEST_HOOK);
-            }
-        }
-
-        // Schedule 15-minute synthetic redirect canary watchdog
-        if (!wp_next_scheduled(self::CANARY_HOOK)) {
-            wp_schedule_event(time() + 60, 'webcare_15min', self::CANARY_HOOK);
-        }
-
-        // Custom cron intervals (e.g., weekly, 5-minutes, 15-minutes)
-        add_filter('cron_schedules', function ($schedules) {
-            if (!isset($schedules['weekly'])) {
-                $schedules['weekly'] = [
-                    'interval' => 7 * DAY_IN_SECONDS,
-                    'display'  => __('Once Weekly', 'webcare-pro-security'),
-                ];
-            }
-            if (!isset($schedules['webcare_every_five_minutes'])) {
-                $schedules['webcare_every_five_minutes'] = [
-                    'interval' => 300,
-                    'display'  => __('Every 5 Minutes (WebCare Pro Security)', 'webcare-pro-security'),
-                ];
-            }
-            if (!isset($schedules['webcare_15min'])) {
-                $schedules['webcare_15min'] = [
-                    'interval' => 900,
-                    'display'  => __('Every 15 Minutes (WebCare Redirect Canary)', 'webcare-pro-security'),
-                ];
-            }
-            return $schedules;
-        });
     }
 
     /**
      * Executes the Monday Morning Peace-of-Mind security digest
      */
-    public static function run_weekly_digest() {
+    public static function run_weekly_digest(bool $force = false): bool {
         if (!class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher') || !class_exists('\\WebCareProScanner\\Reports\\WeeklyDigestEngine')) {
-            return;
+            return false;
         }
 
         // Strict Policy: Only proceed if administrator explicitly enabled the event in Notification Center
@@ -75,7 +62,7 @@ class Scheduler {
 
         if (!$is_email_on && !$is_webhook_on) {
             // Silently abort if disabled by user (the default state)
-            return;
+            return false;
         }
 
         $telemetry = \WebCareProScanner\Reports\WeeklyDigestEngine::compile_weekly_telemetry();
@@ -90,16 +77,18 @@ class Scheduler {
             'html_body' => $email_html,
             'details'   => $telemetry,
         ]);
+
+        return true;
     }
 
     /**
      * Executes background scheduled scan
      */
-     public static function run_scheduled_scan() {
+     public static function run_scheduled_scan(bool $bypass_disabled = false) {
          global $wpdb;
 
          $settings = SettingsManager::get_settings();
-         if (empty($settings['schedule_enabled'])) {
+         if (!$bypass_disabled && empty($settings['schedule_enabled'])) {
              return;
          }
 

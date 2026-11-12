@@ -26,6 +26,18 @@ class PluginSelfDefense {
      */
     public static function init() {
         add_action('admin_notices', [__CLASS__, 'render_tamper_warning_notice']);
+
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_HOOK, 'wp_cron');
+            });
+
+            add_action('init', static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::CRON_HOOK, 300, 'twicedaily');
+            }, 20);
+            return;
+        }
+
         add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_watchdog']);
 
         // Schedule event if not already registered (deferred to init to prevent early textdomain loading)
@@ -277,9 +289,9 @@ class PluginSelfDefense {
     /**
      * Scheduled watchdog check
      */
-    public static function run_scheduled_watchdog() {
+    public static function run_scheduled_watchdog(bool $bypass_disabled = false) {
         $settings = SettingsManager::get_settings();
-        if (empty($settings['self_defense_watchdog_enabled'])) {
+        if (!$bypass_disabled && empty($settings['self_defense_watchdog_enabled'])) {
             return;
         }
 

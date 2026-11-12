@@ -264,6 +264,17 @@ class SettingsManager {
             // 17. Granular Event Notifications Matrix
             'notification_master_enabled'        => true,
             'notification_events'                => self::get_default_notification_events(),
+
+            // 18. Centralized Cron & Task Automation Control
+            'cron_waf_log_prune_enabled'         => true,
+            'cron_domain_reputation_enabled'     => true,
+            'cron_redirect_canary_enabled'       => true,
+            'cron_reinfection_watchdog_enabled'  => true,
+            'cron_modular_autopilot_enabled'     => true,
+            'cron_modular_ast_bg_enabled'        => true,
+            'cron_backup_bg_enabled'             => true,
+            'cron_task_schedules'                => [],
+            'cron_log_retention_days'            => 30,
         ];
     }
 
@@ -1085,6 +1096,54 @@ class SettingsManager {
             update_option('webcareproscan_activity_log_settings', $clean_act_settings, false);
         }
 
+        // 19. Centralized Cron & Task Automation Control
+        $cron_bool_keys = [
+            'cron_waf_log_prune_enabled',
+            'cron_domain_reputation_enabled',
+            'cron_redirect_canary_enabled',
+            'cron_reinfection_watchdog_enabled',
+            'cron_modular_autopilot_enabled',
+            'cron_modular_ast_bg_enabled',
+            'cron_backup_bg_enabled',
+        ];
+        foreach ($cron_bool_keys as $cron_k) {
+            $clean[$cron_k] = array_key_exists($cron_k, $merged) ? !empty($merged[$cron_k]) : true;
+        }
+
+        $allowed_intervals = ['webcare_every_five_minutes', 'webcare_15min', 'webcare_30min', 'hourly', 'twicedaily', 'daily', 'weekly'];
+        $clean_schedules   = [];
+        $raw_schedules     = is_array($merged['cron_task_schedules'] ?? null) ? $merged['cron_task_schedules'] : [];
+        foreach ($raw_schedules as $hk => $freq) {
+            $clean_hk   = sanitize_key((string) $hk);
+            $clean_freq = sanitize_key((string) $freq);
+            if ($clean_hk !== '' && in_array($clean_freq, $allowed_intervals, true)) {
+                $clean_schedules[$clean_hk] = $clean_freq;
+            }
+        }
+        $clean['cron_task_schedules']     = $clean_schedules;
+        $clean['cron_log_retention_days'] = max(7, min(365, intval($merged['cron_log_retention_days'] ?? 30)));
+
+        // Reconcile email_digest_enabled with notification_events['weekly_peace_of_mind_digest'] by diffing against $current
+        $old_digest_flag = !empty($current['email_digest_enabled']);
+        $new_digest_flag = !empty($clean['email_digest_enabled']);
+        $old_digest_ev   = is_array($current['notification_events']['weekly_peace_of_mind_digest'] ?? null)
+            ? $current['notification_events']['weekly_peace_of_mind_digest']
+            : ['email' => false, 'webhook' => false];
+        $new_digest_ev   = is_array($clean['notification_events']['weekly_peace_of_mind_digest'] ?? null)
+            ? $clean['notification_events']['weekly_peace_of_mind_digest']
+            : ['email' => false, 'webhook' => false];
+        $old_ev_on = !empty($old_digest_ev['email']) || !empty($old_digest_ev['webhook']);
+        $new_ev_on = !empty($new_digest_ev['email']) || !empty($new_digest_ev['webhook']);
+
+        if ($new_ev_on !== $old_ev_on && $new_digest_flag === $old_digest_flag) {
+            $clean['email_digest_enabled'] = $new_ev_on;
+        } elseif ($new_digest_flag !== $old_digest_flag && $new_ev_on === $old_ev_on) {
+            $clean['notification_events']['weekly_peace_of_mind_digest']['email'] = $new_digest_flag;
+            if (!$new_digest_flag) {
+                $clean['notification_events']['weekly_peace_of_mind_digest']['webhook'] = false;
+            }
+        }
+
         // Compute settings diff before persisting
         $diff = self::compute_settings_diff($current, $clean);
 
@@ -1092,6 +1151,9 @@ class SettingsManager {
 
         // Synchronize Cron Schedule
         self::sync_cron_schedule($clean);
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter') && !\WebCareProScanner\System\Cron\CronControlCenter::$syncing_from_cron_center) {
+            \WebCareProScanner\System\Cron\CronControlCenter::sync_all_from_settings($clean);
+        }
 
         // Audit Trail: Log settings change if diff is non-empty
         // Strictly record changes made by authorized administrators or explicit administrative processes

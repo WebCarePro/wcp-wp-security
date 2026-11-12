@@ -30,11 +30,21 @@ class ReinfectionWatchdog {
      * Initialize the watchdog hooks and cron listener.
      */
     public static function init() {
-        add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_inspection']);
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_HOOK, 'wp_cron');
+            });
 
-        // Schedule hourly cron if not already scheduled
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', self::CRON_HOOK);
+            add_action('init', static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::CRON_HOOK, HOUR_IN_SECONDS, 'hourly');
+            }, 20);
+        } else {
+            add_action(self::CRON_HOOK, [__CLASS__, 'run_scheduled_inspection']);
+
+            // Schedule hourly cron if not already scheduled
+            if (!wp_next_scheduled(self::CRON_HOOK)) {
+                wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', self::CRON_HOOK);
+            }
         }
 
         // Automatic registration hooks when quarantine or auto-cure occurs

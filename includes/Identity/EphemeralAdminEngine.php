@@ -37,7 +37,23 @@ class EphemeralAdminEngine {
         }
 
         // Cron expiration handler
-        add_action(self::CRON_HOOK, [__CLASS__, 'on_cron_expire_elevation'], 10, 1);
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(
+                self::CRON_HOOK,
+                static function (int $user_id = 0) {
+                    \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(
+                        self::CRON_HOOK,
+                        'wp_cron',
+                        [$user_id],
+                        true
+                    );
+                },
+                10,
+                1
+            );
+        } else {
+            add_action(self::CRON_HOOK, [__CLASS__, 'on_cron_expire_elevation'], 10, 1);
+        }
 
         // Safety fallback check on admin page requests
         add_action('admin_init', [__CLASS__, 'check_and_expire_elevations'], 1);

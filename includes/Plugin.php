@@ -24,12 +24,16 @@ class Plugin {
 
     private function init() {
         // Performance optimization: check cached in-memory alloptions db version first (0 queries)
-        if (get_option('webcareproscan_db_version') !== '1.12.0') {
+        if (get_option('webcareproscan_db_version') !== '1.13.0') {
             \WebCareProScanner\Database\Migration::install();
         }
 
         // Ensure root uploads/webcare-pro-security storage directory has an index.php directory silence guard
         self::ensure_uploads_storage_protected();
+
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            \WebCareProScanner\System\Cron\CronControlCenter::register_filters();
+        }
 
         AdminMenu::register();
         \WebCareProScanner\System\Scheduler::register();

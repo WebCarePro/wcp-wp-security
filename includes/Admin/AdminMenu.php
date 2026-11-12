@@ -298,6 +298,16 @@ class AdminMenu {
             [__CLASS__, 'render_app_container']
         );
 
+        // Sub-Page: Cron & Scheduled Tasks Control Center
+        add_submenu_page(
+            null,
+            __('Cron & Scheduled Tasks Control Center', 'webcare-pro-security'),
+            __('Cron Manager', 'webcare-pro-security'),
+            'manage_options',
+            'webcare-pro-cron-manager',
+            [__CLASS__, 'render_app_container']
+        );
+
         // Sub-Page: Context-Adaptive Firewall (CAF)
         add_submenu_page(
             null,
@@ -347,7 +357,8 @@ class AdminMenu {
                 'webcare-pro-server'         => __('Server & Host Infrastructure Telemetry', 'webcare-pro-security'),
                 'webcare-pro-waf-logs'       => __('WAF Incident Logs & Attack Forensics', 'webcare-pro-security'),
                 'webcare-pro-notifications'  => __('Notifications & Security Alerts', 'webcare-pro-security'),
-                'webcare-pro-activity-logs'   => __('Plugin Activity & Audit Logs', 'webcare-pro-security'),
+                'webcare-pro-activity-logs'  => __('Plugin Activity & Audit Logs', 'webcare-pro-security'),
+                'webcare-pro-cron-manager'   => __('Cron & Scheduled Tasks Control Center', 'webcare-pro-security'),
             ];
 
             if (isset($title_map[$page])) {
@@ -382,6 +393,7 @@ class AdminMenu {
             'webcare-pro-security_page_webcare-pro-auth',
             'webcare-pro-security_page_webcare-pro-notifications',
             'webcare-pro-security_page_webcare-pro-activity-logs',
+            'webcare-pro-security_page_webcare-pro-cron-manager',
             'webcare-pro-security_page_webcare-pro-settings',
             'webcare-pro-security_page_webcare-pro-about',
             'webcare-pro-security_page_webcare-pro-wizard',
@@ -423,6 +435,7 @@ class AdminMenu {
         elseif ($tab_param === 'auth' || $current_page === 'webcare-pro-auth') $active_tab = 'auth';
         elseif ($tab_param === 'notifications' || $current_page === 'webcare-pro-notifications') $active_tab = 'notifications';
         elseif ($tab_param === 'activity_logs' || $current_page === 'webcare-pro-activity-logs') $active_tab = 'activity_logs';
+        elseif ($tab_param === 'cron_manager' || $current_page === 'webcare-pro-cron-manager') $active_tab = 'cron_manager';
         elseif ($tab_param === 'settings' || $current_page === 'webcare-pro-settings') $active_tab = 'settings';
         elseif ($tab_param === 'about' || $current_page === 'webcare-pro-about') $active_tab = 'about';
         elseif ($tab_param === 'wizard' || $current_page === 'webcare-pro-wizard') $active_tab = 'wizard';
@@ -465,6 +478,8 @@ class AdminMenu {
             $page_bundle = 'notifications';
         } elseif ($active_tab === 'activity_logs' && file_exists(WEBCAREPROSCAN_PATH . 'build/activity-logs.js')) {
             $page_bundle = 'activity-logs';
+        } elseif ($active_tab === 'cron_manager' && file_exists(WEBCAREPROSCAN_PATH . 'build/cron-manager.js')) {
+            $page_bundle = 'cron-manager';
         } elseif ($active_tab === 'wizard' && file_exists(WEBCAREPROSCAN_PATH . 'build/wizard.js')) {
             $page_bundle = 'wizard';
         } elseif ($active_tab === 'modular_waf' && file_exists(WEBCAREPROSCAN_PATH . 'build/modular-waf.js')) {

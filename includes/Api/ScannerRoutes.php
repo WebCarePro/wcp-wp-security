@@ -44,6 +44,10 @@ class ScannerRoutes {
             return current_user_can('manage_options');
         };
 
+        if (class_exists('\\WebCareProScanner\\Api\\CronRoutes')) {
+            \WebCareProScanner\Api\CronRoutes::register($permission);
+        }
+
         // Start scan
         register_rest_route(self::NAMESPACE, '/scan/start', [
             'methods'             => 'POST',

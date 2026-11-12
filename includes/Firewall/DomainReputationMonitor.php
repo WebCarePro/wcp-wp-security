@@ -37,6 +37,17 @@ class DomainReputationMonitor {
      * Initialize cron hooks.
      */
     public static function init() {
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_HOOK, 'wp_cron');
+            });
+
+            add_action('init', static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::CRON_HOOK, DAY_IN_SECONDS, 'daily');
+            }, 20);
+            return;
+        }
+
         add_action(self::CRON_HOOK, [__CLASS__, 'run_reputation_audit']);
 
         if (!wp_next_scheduled(self::CRON_HOOK)) {

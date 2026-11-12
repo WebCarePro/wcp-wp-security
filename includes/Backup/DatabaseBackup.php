@@ -13,6 +13,12 @@ class DatabaseBackup {
     private $backup_dir;
 
     public static function init() {
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_STEP_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_STEP_HOOK, 'wp_cron');
+            });
+            return;
+        }
         add_action(self::CRON_STEP_HOOK, [__CLASS__, 'run_background_step']);
     }
 
@@ -1039,6 +1045,11 @@ class DatabaseBackup {
      * @param string $session_id
      */
     public static function dispatch_background_worker(string $session_id) {
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter') && !\WebCareProScanner\System\Cron\CronControlCenter::is_task_enabled(self::CRON_STEP_HOOK)) {
+            wp_clear_scheduled_hook(self::CRON_STEP_HOOK);
+            return;
+        }
+
         // 1. Schedule next WP-Cron single event as a reliable watchdog heartbeat
         if (!wp_next_scheduled(self::CRON_STEP_HOOK)) {
             wp_schedule_single_event(time() + 1, self::CRON_STEP_HOOK);

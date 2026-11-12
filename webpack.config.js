@@ -15,6 +15,7 @@ module.exports = {
     'settings': path.resolve(__dirname, 'src/entries/settings.tsx'),
     'notifications': path.resolve(__dirname, 'src/entries/notifications.tsx'),
     'activity-logs': path.resolve(__dirname, 'src/entries/activity-logs.tsx'),
+    'cron-manager': path.resolve(__dirname, 'src/entries/cron-manager.tsx'),
     'wizard': path.resolve(__dirname, 'src/entries/wizard.tsx'),
     'modular-waf': path.resolve(__dirname, 'src/entries/modular-waf.tsx'),
   },

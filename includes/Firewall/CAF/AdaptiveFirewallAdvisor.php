@@ -608,7 +608,16 @@ final class AdaptiveFirewallAdvisor {
 		add_action( 'webcareproscan_settings_updated', $handler, 999 );
 
 		// Register single-event background cron hook for non-blocking edge sync
-		add_action( 'webcare_cf_auto_sync_edge_cron', [ __CLASS__, 'execute_edge_auto_sync' ] );
+		if ( class_exists( '\\WebCareProScanner\\System\\Cron\\CronControlCenter' ) ) {
+			add_action(
+				'webcare_cf_auto_sync_edge_cron',
+				static function () {
+					\WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler( 'webcare_cf_auto_sync_edge_cron', 'wp_cron' );
+				}
+			);
+		} else {
+			add_action( 'webcare_cf_auto_sync_edge_cron', [ __CLASS__, 'execute_edge_auto_sync' ] );
+		}
 	}
 
 	/**

@@ -692,18 +692,28 @@ class CloudflareIpListSynchronizer {
      * Register asynchronous sync cron hook and AJAX loopback handler.
      */
     public static function register_cron(): void {
-        add_action(self::CRON_HOOK, static function () {
-            $sync = new self();
-            $sync->process_sync_queue();
-        });
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_HOOK, 'wp_cron');
+            });
+
+            add_action('init', static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::CRON_HOOK, 300, 'webcare_every_five_minutes');
+            }, 20);
+        } else {
+            add_action(self::CRON_HOOK, static function () {
+                $sync = new self();
+                $sync->process_sync_queue();
+            });
+
+            if (!wp_next_scheduled(self::CRON_HOOK)) {
+                wp_schedule_event(time() + 300, 'webcare_every_five_minutes', self::CRON_HOOK);
+            }
+        }
 
         // Loopback AJAX handler for high-velocity queue flushing
         add_action('wp_ajax_nopriv_webcare_flush_cf_ban_queue', [__CLASS__, 'handle_loopback_flush']);
         add_action('wp_ajax_webcare_flush_cf_ban_queue', [__CLASS__, 'handle_loopback_flush']);
-
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time() + 300, 'webcare_every_five_minutes', self::CRON_HOOK);
-        }
     }
 
     /**

@@ -20,6 +20,17 @@ class ThreatIntelService {
      * Bootstrap Threat Intelligence Engine & Crons
      */
     public static function init() {
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_HOOK, 'wp_cron');
+            });
+
+            add_action('init', static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::CRON_HOOK, HOUR_IN_SECONDS, 'twicedaily');
+            }, 20);
+            return;
+        }
+
         add_action(self::CRON_HOOK, [__CLASS__, 'sync_threat_intelligence']);
 
         // Defer cron scheduling to init to prevent premature textdomain evaluation

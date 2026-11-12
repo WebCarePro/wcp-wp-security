@@ -23,6 +23,17 @@ class WafFileLogger {
      * Bootstrap WAF File Logger hooks and daily cron maintenance
      */
     public static function init() {
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_HOOK, 'wp_cron');
+            });
+
+            add_action('init', static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::CRON_HOOK, HOUR_IN_SECONDS, 'daily');
+            }, 20);
+            return;
+        }
+
         add_action(self::CRON_HOOK, [__CLASS__, 'prune_expired_logs']);
 
         if (!wp_next_scheduled(self::CRON_HOOK)) {

@@ -136,6 +136,28 @@ class Migration {
             KEY login_time (login_time)
         ) $charset_collate;";
 
+        // 7. Centralized Cron & Scheduled Tasks Execution Logs
+        $cron_logs_table = $wpdb->prefix . 'webcareproscan_cron_logs';
+        $sql7 = "CREATE TABLE $cron_logs_table (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            task_id varchar(64) NOT NULL,
+            hook_name varchar(120) NOT NULL,
+            trigger_source varchar(30) NOT NULL DEFAULT 'wp_cron',
+            status varchar(20) NOT NULL DEFAULT 'success',
+            started_at datetime NOT NULL,
+            completed_at datetime DEFAULT NULL,
+            duration_ms int(11) unsigned NOT NULL DEFAULT 0,
+            summary text DEFAULT NULL,
+            metrics_json longtext DEFAULT NULL,
+            error_message text DEFAULT NULL,
+            actor_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            created_at_gmt datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY hook_created (hook_name, created_at_gmt),
+            KEY status_created (status, created_at_gmt),
+            KEY created_at_gmt (created_at_gmt)
+        ) $charset_collate;";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql1);
         dbDelta($sql2);
@@ -143,7 +165,8 @@ class Migration {
         dbDelta($sql4);
         dbDelta($sql5);
         dbDelta($sql6);
+        dbDelta($sql7);
 
-        update_option('webcareproscan_db_version', '1.12.0');
+        update_option('webcareproscan_db_version', '1.13.0');
     }
 }

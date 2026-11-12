@@ -33,11 +33,24 @@ class RescueAssistantManager {
      * Register hooks for cron auto-rearm, 48h auto-pilot promotion, and WordPress Admin Bar popover.
      */
     public static function init(): void {
-        add_action(self::CRON_REARM_HOOK, [__CLASS__, 'resume_strict_firewall']);
-        add_action(self::CRON_AUTOPILOT_HOOK, [__CLASS__, 'run_autopilot_cron']);
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_REARM_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_REARM_HOOK, 'wp_cron');
+            });
+            add_action(self::CRON_AUTOPILOT_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_AUTOPILOT_HOOK, 'wp_cron');
+            });
 
-        if (!wp_next_scheduled(self::CRON_AUTOPILOT_HOOK)) {
-            wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', self::CRON_AUTOPILOT_HOOK);
+            add_action('init', static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::ensure_scheduled(self::CRON_AUTOPILOT_HOOK, HOUR_IN_SECONDS, 'hourly');
+            }, 20);
+        } else {
+            add_action(self::CRON_REARM_HOOK, [__CLASS__, 'resume_strict_firewall']);
+            add_action(self::CRON_AUTOPILOT_HOOK, [__CLASS__, 'run_autopilot_cron']);
+
+            if (!wp_next_scheduled(self::CRON_AUTOPILOT_HOOK)) {
+                wp_schedule_event(time() + HOUR_IN_SECONDS, 'hourly', self::CRON_AUTOPILOT_HOOK);
+            }
         }
 
         add_action('admin_bar_menu', [__CLASS__, 'register_admin_bar_nodes'], 95);

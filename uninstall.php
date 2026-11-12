@@ -123,6 +123,7 @@ if ($webcareproscan_delete_data) {
             $wpdb->prefix . 'webcareproscan_quarantine',
             $wpdb->prefix . 'webcareproscan_firewall_logs',
             $wpdb->prefix . 'webcareproscan_login_history',
+            $wpdb->prefix . 'webcareproscan_cron_logs',
             $wpdb->prefix . 'webcare_scans',
             $wpdb->prefix . 'webcare_scan_issues',
             $wpdb->prefix . 'webcare_scan_files',
@@ -191,12 +192,27 @@ if ($webcareproscan_delete_data) {
 
     // 5. Clear scheduled cron jobs
     if ($webcareproscan_delete_crons) {
-        wp_clear_scheduled_hook('webcareproscan_scheduled_scan_cron');
-        wp_clear_scheduled_hook('webcareproscan_scheduled_scan_event');
-        wp_clear_scheduled_hook('webcareproscan_threat_intel_cron_sync');
-        wp_clear_scheduled_hook('webcareproscan_self_defense_watchdog_event');
-        wp_clear_scheduled_hook('webcareproscan_ephemeral_admin_expire');
-        wp_clear_scheduled_hook('webcareproscan_waf_log_retention_prune');
+        $webcareproscan_cron_hooks = [
+            'webcareproscan_scheduled_scan_cron',
+            'webcareproscan_scheduled_scan_event',
+            'webcareproscan_weekly_digest_event',
+            'webcareproscan_redirect_canary_event',
+            'webcareproscan_modular_ast_step',
+            'webcareproscan_backup_step_worker',
+            'webcareproscan_threat_intel_cron_sync',
+            'webcareproscan_self_defense_watchdog_event',
+            'webcareproscan_waf_log_retention_prune',
+            'webcareproscan_domain_reputation_daily_check',
+            'webcareproscan_reinfection_hourly_check',
+            'webcareproscan_modular_autopilot_cron',
+            'webcareproscan_auto_rearm_waf',
+            'webcareproscan_ephemeral_admin_expire',
+            'webcare_cloudflare_ip_sync_cron',
+            'webcare_cf_auto_sync_edge_cron',
+        ];
+        foreach ($webcareproscan_cron_hooks as $webcareproscan_hook) {
+            wp_clear_scheduled_hook($webcareproscan_hook);
+        }
     }
 
     // 6. Remove all plugin-created files in uploads (logs, quarantine, backups)

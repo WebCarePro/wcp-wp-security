@@ -313,6 +313,12 @@ class SiteBehavioralAnalyzer {
      * Register background WP-Cron handler so scans continue smoothly if the admin closes their browser.
      */
     public static function register_cron_hook(): void {
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter')) {
+            add_action(self::CRON_STEP_HOOK, static function () {
+                \WebCareProScanner\System\Cron\CronControlCenter::invoke_task_handler(self::CRON_STEP_HOOK, 'wp_cron');
+            });
+            return;
+        }
         add_action(self::CRON_STEP_HOOK, [__CLASS__, 'run_background_cron_step']);
     }
 
@@ -320,6 +326,10 @@ class SiteBehavioralAnalyzer {
      * Schedule a delayed WP-Cron continuation tick if one is not already queued.
      */
     private static function schedule_cron_continuation(int $delay_seconds = 15): void {
+        if (class_exists('\\WebCareProScanner\\System\\Cron\\CronControlCenter') && !\WebCareProScanner\System\Cron\CronControlCenter::is_task_enabled(self::CRON_STEP_HOOK)) {
+            self::unschedule_cron_continuation();
+            return;
+        }
         if (!wp_next_scheduled(self::CRON_STEP_HOOK)) {
             wp_schedule_single_event(time() + max(2, $delay_seconds), self::CRON_STEP_HOOK);
         }
@@ -339,7 +349,7 @@ class SiteBehavioralAnalyzer {
     /**
      * WP-Cron worker: advances an active 'running' scan in the background when no browser tab is polling it.
      */
-    public static function run_background_cron_step(): void {
+    public static function run_background_cron_step(bool $bypass_idle_check = false): void {
         $state = get_option(self::OPTION_STATE, null);
         if (!$state || !is_array($state) || ($state['status'] ?? '') !== 'running') {
             self::unschedule_cron_continuation();
@@ -348,7 +358,7 @@ class SiteBehavioralAnalyzer {
 
         // If browser polled within the last 10 seconds, stay idle and check again later
         $last_touch = floatval($state['updated_at_micro'] ?? ($state['updated_at'] ?? 0));
-        if ((microtime(true) - $last_touch) < 10.0) {
+        if (!$bypass_idle_check && (microtime(true) - $last_touch) < 10.0) {
             self::schedule_cron_continuation(15);
             return;
         }
