@@ -1232,14 +1232,47 @@ class ScannerRoutes {
             }
             $auth_header = $request->get_header('Authorization');
             if (!empty($auth_header) && preg_match('/Bearer\s+(\S+)/i', $auth_header, $matches)) {
-                $token = $matches[1];
-                $expected = \WebCareProScanner\System\SettingsManager::get('mcp_token', '');
-                if (!empty($expected) && hash_equals($expected, $token)) {
-                    return true;
+                $token    = $matches[1];
+                $expected = (string) \WebCareProScanner\System\SettingsManager::get('mcp_token', '');
+                if ($expected === '' || !hash_equals($expected, $token)) {
+                    return false;
                 }
+
+                // Check optional token TTL expiration
+                $ttl_days   = (int) \WebCareProScanner\System\SettingsManager::get('mcp_token_ttl_days', 0);
+                $created_at = (int) \WebCareProScanner\System\SettingsManager::get('mcp_token_created_at', 0);
+                if ($ttl_days > 0 && $created_at > 0 && time() > ($created_at + ($ttl_days * 86400))) {
+                    return new \WP_Error('mcp_token_expired', __('MCP Bearer token has expired. Rotate the token in WP Admin.', 'webcare-pro-security'), ['status' => 401]);
+                }
+
+                // Check optional client IP/CIDR allowlist
+                $raw_cidrs = trim((string) \WebCareProScanner\System\SettingsManager::get('mcp_allowed_cidrs', ''));
+                if ($raw_cidrs !== '') {
+                    $cidrs     = \WebCareProScanner\Api\MCPAntiLockoutValidator::parse_cidr_list($raw_cidrs);
+                    $client_ip = \WebCareProScanner\Firewall\FirewallEngine::get_client_ip();
+                    if (!empty($cidrs) && !\WebCareProScanner\Api\MCPAntiLockoutValidator::ip_matches_cidr_list($client_ip, $cidrs)) {
+                        return new \WP_Error('mcp_ip_denied', __('Client IP is not in the MCP allowed CIDR list.', 'webcare-pro-security'), ['status' => 403]);
+                    }
+                }
+
+                return true;
             }
             return false;
         };
+
+        $mcp_admin_only = function (\WP_REST_Request $request) use ($permission) {
+            $auth_header = (string) $request->get_header('Authorization');
+            if (stripos($auth_header, 'Bearer ') === 0) {
+                return false;
+            }
+            return (bool) call_user_func($permission, $request);
+        };
+
+        register_rest_route(self::NAMESPACE, '/mcp/rpc', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'handle_mcp_json_rpc'],
+            'permission_callback' => $mcp_permission,
+        ]);
 
         register_rest_route(self::NAMESPACE, '/mcp/tools', [
             'methods'             => 'GET',
@@ -1262,12 +1295,10 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/mcp/audit/clear', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'clear_mcp_audit'],
-            'permission_callback' => function () {
-                return current_user_can('manage_options');
-            },
+            'permission_callback' => $mcp_admin_only,
         ]);
 
-        // MCP Staged Actions Approval Gate & Governance Matrix
+        // MCP Staged Actions Approval Gate, Persona, Snapshots, Token Controls & Matrix
         register_rest_route(self::NAMESPACE, '/mcp/staged-actions', [
             'methods'             => 'GET',
             'callback'            => [__CLASS__, 'get_mcp_staged_actions'],
@@ -1277,19 +1308,49 @@ class ScannerRoutes {
         register_rest_route(self::NAMESPACE, '/mcp/staged-actions/approve', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'approve_mcp_staged_action'],
-            'permission_callback' => $permission,
+            'permission_callback' => $mcp_admin_only,
         ]);
 
         register_rest_route(self::NAMESPACE, '/mcp/staged-actions/reject', [
             'methods'             => 'POST',
             'callback'            => [__CLASS__, 'reject_mcp_staged_action'],
-            'permission_callback' => $permission,
+            'permission_callback' => $mcp_admin_only,
         ]);
 
         register_rest_route(self::NAMESPACE, '/mcp/matrix', [
             'methods'             => ['GET', 'POST'],
             'callback'            => [__CLASS__, 'handle_mcp_matrix'],
+            'permission_callback' => $mcp_admin_only,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/persona', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'apply_mcp_persona'],
+            'permission_callback' => $mcp_admin_only,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/token/reveal', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'reveal_mcp_token'],
+            'permission_callback' => $mcp_admin_only,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/token/rotate', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'rotate_mcp_token'],
+            'permission_callback' => $mcp_admin_only,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/snapshots', [
+            'methods'             => 'GET',
+            'callback'            => [__CLASS__, 'get_mcp_snapshots'],
             'permission_callback' => $permission,
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/mcp/snapshots/restore', [
+            'methods'             => 'POST',
+            'callback'            => [__CLASS__, 'restore_mcp_snapshot'],
+            'permission_callback' => $mcp_admin_only,
         ]);
 
         // Red Team Attack Simulation Drill
@@ -11753,27 +11814,38 @@ class ScannerRoutes {
         ]);
     }
 
+    public static function handle_mcp_json_rpc(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $rpc    = \WebCareProScanner\Api\MCPAgentService::handle_json_rpc($params);
+        return rest_ensure_response($rpc);
+    }
+
     public static function get_mcp_staged_actions(\WP_REST_Request $request) {
         $status = sanitize_text_field($request->get_param('status') ?? 'all');
+        $list   = \WebCareProScanner\Api\MCPAgentService::get_staged_actions($status);
         return rest_ensure_response([
-            'success' => true,
-            'actions' => \WebCareProScanner\Api\MCPAgentService::get_staged_actions($status),
+            'success'        => true,
+            'actions'        => $list,
+            'staged_actions' => $list,
         ]);
     }
 
     public static function approve_mcp_staged_action(\WP_REST_Request $request) {
-        $staged_id = sanitize_text_field($request->get_param('staged_id') ?? '');
-        if (empty($staged_id)) {
+        $params    = $request->get_json_params() ?: [];
+        $staged_id = sanitize_text_field((string) ($params['staged_id'] ?? $params['action_id'] ?? $request->get_param('staged_id') ?? $request->get_param('action_id') ?? ''));
+        $step_up   = (string) ($params['step_up_secret'] ?? $params['totp_code'] ?? $params['password'] ?? '');
+        if ($staged_id === '') {
             return new \WP_Error('missing_param', __('Staged action ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
-        $res = \WebCareProScanner\Api\MCPAgentService::approve_staged_action($staged_id, get_current_user_id());
+        $res = \WebCareProScanner\Api\MCPAgentService::approve_staged_action($staged_id, get_current_user_id(), $step_up);
         return rest_ensure_response($res);
     }
 
     public static function reject_mcp_staged_action(\WP_REST_Request $request) {
-        $staged_id = sanitize_text_field($request->get_param('staged_id') ?? '');
-        if (empty($staged_id)) {
+        $params    = $request->get_json_params() ?: [];
+        $staged_id = sanitize_text_field((string) ($params['staged_id'] ?? $params['action_id'] ?? $request->get_param('staged_id') ?? $request->get_param('action_id') ?? ''));
+        if ($staged_id === '') {
             return new \WP_Error('missing_param', __('Staged action ID is required.', 'webcare-pro-security'), ['status' => 400]);
         }
 
@@ -11797,11 +11869,68 @@ class ScannerRoutes {
             ]);
         }
 
-        $matrix = \WebCareProScanner\System\SettingsManager::get('mcp_tool_matrix', \WebCareProScanner\System\SettingsManager::get_default_mcp_tool_matrix());
+        $saved    = \WebCareProScanner\System\SettingsManager::get('mcp_tool_matrix', []);
+        $defaults = \WebCareProScanner\System\SettingsManager::get_default_mcp_tool_matrix();
+        $merged   = array_merge($defaults, is_array($saved) ? $saved : []);
         return rest_ensure_response([
             'success' => true,
-            'matrix'  => $matrix,
+            'matrix'  => \WebCareProScanner\System\SettingsManager::sanitize_mcp_tool_matrix($merged),
         ]);
+    }
+
+    public static function apply_mcp_persona(\WP_REST_Request $request) {
+        $params = $request->get_json_params() ?: [];
+        $preset = sanitize_key((string) ($params['preset'] ?? 'guided'));
+        $res    = \WebCareProScanner\Api\MCPAgentService::apply_persona_preset($preset);
+        return rest_ensure_response($res);
+    }
+
+    public static function reveal_mcp_token(\WP_REST_Request $request) {
+        unset($request);
+        $token      = (string) \WebCareProScanner\System\SettingsManager::get('mcp_token', '');
+        $created_at = (int) \WebCareProScanner\System\SettingsManager::get('mcp_token_created_at', 0);
+        $ttl_days   = (int) \WebCareProScanner\System\SettingsManager::get('mcp_token_ttl_days', 0);
+        $expires_at = ($ttl_days > 0 && $created_at > 0) ? ($created_at + ($ttl_days * 86400)) : 0;
+        return rest_ensure_response([
+            'success'    => $token !== '',
+            'token'      => $token,
+            'created_at' => $created_at,
+            'ttl_days'   => $ttl_days,
+            'expires_at' => $expires_at,
+        ]);
+    }
+
+    public static function rotate_mcp_token(\WP_REST_Request $request) {
+        unset($request);
+        $new_plain = 'webcareproscan_mcp_' . bin2hex(random_bytes(16));
+        \WebCareProScanner\System\SettingsManager::save_settings([
+            'mcp_token'            => $new_plain,
+            'mcp_token_created_at' => time(),
+        ]);
+        $ttl_days = (int) \WebCareProScanner\System\SettingsManager::get('mcp_token_ttl_days', 0);
+        return rest_ensure_response([
+            'success'    => true,
+            'token'      => $new_plain,
+            'created_at' => time(),
+            'ttl_days'   => $ttl_days,
+            'expires_at' => $ttl_days > 0 ? (time() + ($ttl_days * 86400)) : 0,
+            'message'    => __('MCP Bearer token rotated cleanly.', 'webcare-pro-security'),
+        ]);
+    }
+
+    public static function get_mcp_snapshots(\WP_REST_Request $request) {
+        $limit = max(1, min(15, intval($request->get_param('limit') ?? 15)));
+        return rest_ensure_response([
+            'success'   => true,
+            'snapshots' => \WebCareProScanner\Api\MCPSnapshotManager::list_snapshots($limit),
+        ]);
+    }
+
+    public static function restore_mcp_snapshot(\WP_REST_Request $request) {
+        $params      = $request->get_json_params() ?: [];
+        $snapshot_id = sanitize_text_field((string) ($params['snapshot_id'] ?? ''));
+        $res         = \WebCareProScanner\Api\MCPSnapshotManager::restore_snapshot($snapshot_id);
+        return rest_ensure_response($res);
     }
 
     public static function run_security_drill(\WP_REST_Request $request) {

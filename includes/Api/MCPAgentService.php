@@ -12,6 +12,8 @@ use WebCareProScanner\System\SettingsManager;
 use WebCareProScanner\Findings\RiskScorer;
 use WebCareProScanner\Security\AttackSimulationEngine;
 use WebCareProScanner\Security\EmergencyContainmentManager;
+use WebCareProScanner\Security\PromptInjectionGuard;
+use WebCareProScanner\Auth\TwoFactorAuth;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -41,6 +43,15 @@ class MCPAgentService {
         'webcareproscan_get_identity_forensics',
         'webcareproscan_get_threat_intel_network',
         'webcareproscan_test_virtual_patch',
+        'webcareproscan_get_settings_catalog',
+        'webcareproscan_get_server_hardening_status',
+        'webcareproscan_get_scan_status',
+        'webcareproscan_explain_finding',
+        'webcareproscan_export_security_report',
+        'webcareproscan_list_quarantine_items',
+        'webcareproscan_list_waf_incidents',
+        'webcareproscan_get_cloudflare_status',
+        'webcareproscan_list_mcp_snapshots',
     ];
 
     const MUTATING_TOOLS = [
@@ -50,7 +61,6 @@ class MCPAgentService {
         'webcareproscan_quarantine_file',
         'webcareproscan_run_security_drill',
         'webcareproscan_set_containment_mode',
-        'webcareproscan_approve_staged_action',
         'webcareproscan_recalibrate_sbom_baseline',
         'webcareproscan_quarantine_supply_chain_anchor',
         'webcareproscan_set_route_learning_status',
@@ -60,6 +70,37 @@ class MCPAgentService {
         'webcareproscan_sync_threat_intel',
         'webcareproscan_synthesize_virtual_patch',
         'webcareproscan_deploy_synthesized_patch',
+        'webcareproscan_update_plugin_settings',
+        'webcareproscan_apply_htaccess_hardening',
+        'webcareproscan_start_security_scan',
+        'webcareproscan_manage_scan_exclusions',
+        'webcareproscan_restore_quarantined_file',
+        'webcareproscan_delete_quarantined_file',
+        'webcareproscan_repair_official_file',
+        'webcareproscan_manage_ip_access',
+        'webcareproscan_sync_cloudflare_ip_ban',
+        'webcareproscan_undo_last_mcp_change',
+    ];
+
+    const TIER4_TOOLS = [
+        'webcareproscan_delete_quarantined_file',
+        'webcareproscan_set_containment_mode',
+        'webcareproscan_grant_ephemeral_elevation',
+        'webcareproscan_quarantine_supply_chain_anchor',
+    ];
+
+    const TIER3_TOOLS = [
+        'webcareproscan_apply_htaccess_hardening',
+        'webcareproscan_restore_quarantined_file',
+        'webcareproscan_repair_official_file',
+        'webcareproscan_rollback_remediation',
+        'webcareproscan_deploy_virtual_patch',
+        'webcareproscan_deploy_synthesized_patch',
+        'webcareproscan_recalibrate_sbom_baseline',
+        'webcareproscan_revoke_user_session',
+        'webcareproscan_apply_recommended_modular_rules',
+        'webcareproscan_toggle_modular_autopilot',
+        'webcareproscan_toggle_cron_task',
     ];
 
     const AUDIT_OPTION_KEY  = 'webcareproscan_mcp_audit_log';
@@ -68,47 +109,102 @@ class MCPAgentService {
     const MAX_STAGED_ACTIONS = 100;
 
     /**
-     * Retrieve current tool policy for a given tool: 'allowed' | 'confirmation_required' | 'blocked'.
+     * Build map of all registered valid tools (core + dynamic ModuleRegistry).
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function get_registered_tool_map(): array {
+        $map = [];
+        foreach (self::READ_TOOLS as $rt) {
+            $map[$rt] = ['name' => $rt, 'isMutating' => false, 'tier' => 1];
+        }
+        foreach (self::MUTATING_TOOLS as $mt) {
+            $tier = in_array($mt, self::TIER4_TOOLS, true) ? 4 : (in_array($mt, self::TIER3_TOOLS, true) ? 3 : 2);
+            $map[$mt] = ['name' => $mt, 'isMutating' => true, 'tier' => $tier];
+        }
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            foreach (\WebCareProScanner\Core\ModuleRegistry::get_mcp_tools() as $mod_t) {
+                $t_name = (string) ($mod_t['name'] ?? '');
+                if ($t_name !== '') {
+                    $is_mut = !empty($mod_t['isMutating']);
+                    $tier   = isset($mod_t['tier']) ? (int) $mod_t['tier'] : ($is_mut ? (in_array($t_name, self::TIER3_TOOLS, true) ? 3 : 2) : 1);
+                    $map[$t_name] = ['name' => $t_name, 'isMutating' => $is_mut, 'tier' => $tier];
+                }
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Classify a tool into Risk Tier 1 (Read), 2 (Reversible), 3 (Sensitive), or 4 (Destructive).
+     */
+    public static function get_tool_tier(string $tool, array $args = []): int {
+        $map  = self::get_registered_tool_map();
+        $base = (int) ($map[$tool]['tier'] ?? (in_array($tool, self::READ_TOOLS, true) ? 1 : 2));
+
+        // Dynamic tier escalation based on call arguments
+        if ($tool === 'webcareproscan_toggle_or_delete_custom_rule' && ($args['action'] ?? '') === 'delete') {
+            return 4;
+        }
+        if ($tool === 'webcareproscan_manage_ip_access' && in_array($args['action'] ?? '', ['unban', 'whitelist'], true)) {
+            return 3;
+        }
+        if ($tool === 'webcareproscan_sync_cloudflare_ip_ban' && ($args['action'] ?? '') === 'unban') {
+            return 3;
+        }
+        if ($tool === 'webcareproscan_save_custom_visual_rule') {
+            $check = MCPAntiLockoutValidator::validate_custom_rule($args);
+            if ((int) ($check['escalate_tier'] ?? 0) > $base) {
+                $base = (int) $check['escalate_tier'];
+            }
+            if (($args['action_type'] ?? '') === 'allow') {
+                $base = max($base, 3);
+            }
+        }
+        if ($tool === 'webcareproscan_update_plugin_settings' && !empty($args['updates']) && is_array($args['updates'])) {
+            $res = MCPSettingsPolicy::validate_and_classify_update($args['updates']);
+            if (!empty($res['max_tier']) && (int) $res['max_tier'] > $base) {
+                $base = (int) $res['max_tier'];
+            }
+        }
+
+        return $base;
+    }
+
+    /**
+     * Retrieve current tool policy: 'allowed' | 'confirmation_required' | 'blocked' | 'unknown'.
      *
      * @param string $tool
      * @return string
      */
     public static function get_tool_policy(string $tool): string {
-        $scope = SettingsManager::get('mcp_permission_scope', 'read_only');
-        if ($scope === 'read_only') {
-            if (in_array($tool, self::MUTATING_TOOLS, true)) {
-                return 'blocked';
-            }
-            if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
-                foreach (\WebCareProScanner\Core\ModuleRegistry::get_mcp_tools() as $mt) {
-                    if (($mt['name'] ?? '') === $tool && !empty($mt['isMutating'])) {
-                        return 'blocked';
-                    }
-                }
-            }
+        $catalog = self::get_registered_tool_map();
+        if (!isset($catalog[$tool])) {
+            return 'unknown';
+        }
+
+        $meta   = $catalog[$tool];
+        $is_mut = !empty($meta['isMutating']);
+        $tier   = (int) ($meta['tier'] ?? ($is_mut ? 2 : 1));
+        $scope  = SettingsManager::get('mcp_permission_scope', 'read_only');
+
+        if ($scope === 'read_only' && $is_mut) {
+            return 'blocked';
         }
 
         $matrix = SettingsManager::get('mcp_tool_matrix', []);
         if (is_array($matrix) && isset($matrix[$tool])) {
-            return $matrix[$tool];
-        }
-
-        // Default policies
-        if (in_array($tool, self::READ_TOOLS, true)) {
-            return 'allowed';
-        }
-        if ($tool === 'webcareproscan_run_security_drill') {
-            return 'allowed';
-        }
-        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
-            foreach (\WebCareProScanner\Core\ModuleRegistry::get_mcp_tools() as $mt) {
-                if (($mt['name'] ?? '') === $tool && empty($mt['isMutating'])) {
-                    return 'allowed';
-                }
+            $pol = $matrix[$tool];
+            if ($tier >= 4 && $pol === 'allowed') {
+                return 'confirmation_required';
             }
+            return $pol;
         }
 
-        // Deterministic Sandboxing: All mutating and state-altering tools require human confirmation by default
+        if (!$is_mut || $tool === 'webcareproscan_run_security_drill') {
+            return 'allowed';
+        }
+
         return 'confirmation_required';
     }
 
@@ -333,23 +429,6 @@ class MCPAgentService {
                         ],
                     ],
                     'required' => ['action'],
-                ],
-            ],
-            [
-                'name'        => 'webcareproscan_approve_staged_action',
-                'description' => 'Approve and execute a staged mutation action that was held in the human confirmation gate.',
-                'category'    => 'mutating',
-                'isMutating'  => true,
-                'policy'      => self::get_tool_policy('webcareproscan_approve_staged_action'),
-                'inputSchema' => [
-                    'type'       => 'object',
-                    'properties' => [
-                        'staged_id' => [
-                            'type'        => 'string',
-                            'description' => 'Staged Action ID (e.g. stg_a1b2c3d4e5f6)',
-                        ],
-                    ],
-                    'required' => ['staged_id'],
                 ],
             ],
             [
@@ -633,6 +712,21 @@ class MCPAgentService {
             ],
         ];
 
+        foreach ($tools as &$base_t) {
+            if (!isset($base_t['tier'])) {
+                $base_t['tier'] = self::get_tool_tier((string) ($base_t['name'] ?? ''));
+            }
+        }
+        unset($base_t);
+
+        if (class_exists(MCPExtendedTools::class)) {
+            foreach (MCPExtendedTools::get_tool_definitions() as $ext_tool) {
+                $t_name          = (string) $ext_tool['name'];
+                $ext_tool['policy'] = self::get_tool_policy($t_name);
+                $tools[]         = $ext_tool;
+            }
+        }
+
         if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
             foreach (\WebCareProScanner\Core\ModuleRegistry::get_mcp_tools() as $mod_tool) {
                 $t_name = sanitize_text_field((string) ($mod_tool['name'] ?? ''));
@@ -645,6 +739,7 @@ class MCPAgentService {
                     'name'        => $t_name,
                     'description' => sanitize_text_field((string) ($mod_tool['description'] ?? '')),
                     'category'    => sanitize_key((string) ($mod_tool['category'] ?? ($is_mut ? 'mutating' : 'read'))),
+                    'tier'        => isset($mod_tool['tier']) ? (int) $mod_tool['tier'] : ($is_mut ? 2 : 1),
                     'isMutating'  => $is_mut,
                     'policy'      => $t_pol,
                     'inputSchema' => is_array($mod_tool['inputSchema'] ?? null)
@@ -655,9 +750,10 @@ class MCPAgentService {
         }
 
         return [
-            'scope'      => $scope,
-            'isReadOnly' => ($scope === 'read_only'),
-            'tools'      => $tools,
+            'scope'         => $scope,
+            'personaPreset' => (string) SettingsManager::get('mcp_persona_preset', 'guided'),
+            'isReadOnly'    => ($scope === 'read_only'),
+            'tools'         => $tools,
         ];
     }
 
@@ -719,7 +815,7 @@ class MCPAgentService {
     }
 
     /**
-     * Sanitize and summarize arguments for safe audit logging.
+     * Sanitize, redact secrets, and summarize arguments for safe audit logging.
      *
      * @param array $args
      * @return string
@@ -728,17 +824,38 @@ class MCPAgentService {
         if (empty($args)) {
             return '{}';
         }
-        $clean = [];
-        foreach ($args as $k => $v) {
-            if (is_array($v)) {
-                $clean[$k] = '[Array(' . count($v) . ')]';
-            } elseif (is_string($v) && strlen($v) > 50) {
-                $clean[$k] = substr($v, 0, 47) . '...';
-            } else {
-                $clean[$k] = $v;
-            }
+        $clean = self::redact_recursive($args);
+        return (string) wp_json_encode($clean);
+    }
+
+    /**
+     * Recursively mask secret keys and truncate overly long strings before audit storage.
+     *
+     * @param mixed $data
+     * @param int   $depth
+     * @return mixed
+     */
+    private static function redact_recursive($data, int $depth = 0) {
+        if ($depth > 4) {
+            return '[DEPTH_LIMIT]';
         }
-        return wp_json_encode($clean);
+        if (is_array($data)) {
+            $out = [];
+            foreach ($data as $k => $v) {
+                if (preg_match('/(?:pass|token|secret|key|auth|webhook|cookie|nonce|pwd)/i', (string) $k)) {
+                    $out[$k] = '[REDACTED]';
+                } elseif (is_array($v) && $depth >= 2) {
+                    $out[$k] = '[Array(' . count($v) . ')]';
+                } else {
+                    $out[$k] = self::redact_recursive($v, $depth + 1);
+                }
+            }
+            return $out;
+        }
+        if (is_string($data) && strlen($data) > 60) {
+            return substr($data, 0, 57) . '...';
+        }
+        return $data;
     }
 
     /**
@@ -751,6 +868,7 @@ class MCPAgentService {
      */
     public static function execute_tool(string $tool, array $args = [], bool $bypass_gate = false): array {
         $start_time = microtime(true);
+        $tool       = sanitize_text_field($tool);
 
         $client_ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
             ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
@@ -758,6 +876,39 @@ class MCPAgentService {
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $raw_ua     = isset($_SERVER['HTTP_USER_AGENT']) ? (string) wp_unslash($_SERVER['HTTP_USER_AGENT']) : '';
         $user_agent = $raw_ua !== '' ? sanitize_text_field(substr($raw_ua, 0, 120)) : 'Unknown AI Agent';
+
+        // 0. Reject unknown tools & block self-approval calls immediately (never stage)
+        if ($tool === 'webcareproscan_approve_staged_action') {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => __('Staged actions can only be approved inside the WP Admin Console.', 'webcare-pro-security')]],
+            ];
+        }
+
+        $catalog_map = self::get_registered_tool_map();
+        if (!isset($catalog_map[$tool])) {
+            self::log_audit_event([
+                'id'          => uniqid('mcp_', true),
+                'timestamp'   => time(),
+                'client_ip'   => $client_ip,
+                'user_agent'  => $user_agent,
+                'tool'        => $tool,
+                'args'        => self::summarize_args($args),
+                'duration_ms' => round((microtime(true) - $start_time) * 1000, 2),
+                'status'      => 'denied_unknown_tool',
+                'message'     => 'Unknown or unregistered MCP tool rejected',
+            ]);
+            return [
+                'isError' => true,
+                'content' => [
+                    [
+                        'type' => 'text',
+                        /* translators: %s: MCP tool name */
+                        'text' => sprintf(__('Unknown or unregistered MCP tool "%s".', 'webcare-pro-security'), $tool),
+                    ],
+                ],
+            ];
+        }
 
         // 1. Sliding-window rate limit check
         $rate_limit = (int) SettingsManager::get('mcp_rate_limit_per_min', 60);
@@ -787,8 +938,22 @@ class MCPAgentService {
             ];
         }
 
-        // 2. Tool Governance & Policy Enforcement
-        $policy = self::get_tool_policy($tool);
+        // 2. Payload Validation & Anti-Lockout Invariants before policy/staging
+        $preflight = self::preflight_guardrails($tool, $args);
+        if (!empty($preflight['reject'])) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => (string) $preflight['message']]],
+                'result'  => ['success' => false, 'message' => (string) $preflight['message']],
+            ];
+        }
+
+        // 3. Tool Governance & Dynamic Risk-Tier Enforcement
+        $policy       = self::get_tool_policy($tool);
+        $dynamic_tier = self::get_tool_tier($tool, $args);
+        if (!empty($preflight['escalate_tier']) && (int) $preflight['escalate_tier'] > $dynamic_tier) {
+            $dynamic_tier = (int) $preflight['escalate_tier'];
+        }
 
         if ($policy === 'blocked') {
             $duration_ms = round((microtime(true) - $start_time) * 1000, 2);
@@ -816,9 +981,23 @@ class MCPAgentService {
             ];
         }
 
-        // 3. Staged Action Confirmation Gate
-        if (!$bypass_gate && $policy === 'confirmation_required') {
-            return self::stage_action_for_approval($tool, $args, $client_ip, $user_agent, $start_time);
+        $needs_gate = ($policy === 'confirmation_required');
+        if ($dynamic_tier >= 3 && !empty($catalog_map[$tool]['isMutating'])) {
+            // Tier 3/4 sensitive payloads auto-escalate to confirmation gate unless tool policy explicitly opted in AND tier < 4
+            if ($dynamic_tier >= 4 || !empty($preflight['force_stage'])) {
+                $needs_gate = true;
+            }
+        }
+
+        // 4. Staged Action Confirmation Gate
+        if (!$bypass_gate && $needs_gate) {
+            return self::stage_action_for_approval($tool, $args, $client_ip, $user_agent, $start_time, $dynamic_tier, $preflight);
+        }
+
+        // 5. Capture Authoritative Pre-Execution Undo Snapshot right before mutating execution
+        if (!empty($catalog_map[$tool]['isMutating']) && $tool !== 'webcareproscan_undo_last_mcp_change' && class_exists(MCPSnapshotManager::class)) {
+            $actor_label = $bypass_gate ? 'Approved Admin Session' : ('MCP Agent (' . $user_agent . ')');
+            MCPSnapshotManager::capture_pre_change_snapshot($tool, $args, $actor_label, (string) ($preflight['summary'] ?? ''));
         }
 
         // 4. Tool Execution
@@ -866,10 +1045,6 @@ class MCPAgentService {
 
             case 'webcareproscan_set_containment_mode':
                 $response = self::tool_set_containment_mode($args);
-                break;
-
-            case 'webcareproscan_approve_staged_action':
-                $response = self::tool_approve_staged_action($args);
                 break;
 
             case 'webcareproscan_get_supply_chain_sbom':
@@ -933,6 +1108,13 @@ class MCPAgentService {
                 break;
 
             default:
+                if (class_exists(MCPExtendedTools::class)) {
+                    $ext_res = MCPExtendedTools::dispatch($tool, $args);
+                    if (is_array($ext_res)) {
+                        $response = $ext_res;
+                        break;
+                    }
+                }
                 if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
                     $mod_res = \WebCareProScanner\Core\ModuleRegistry::execute_mcp_tool($tool, $args);
                     if (is_array($mod_res)) {
@@ -974,14 +1156,24 @@ class MCPAgentService {
     /**
      * Stage an action into the Staged Action Queue for human confirmation.
      *
-     * @param string $tool
-     * @param array  $args
-     * @param string $client_ip
-     * @param string $user_agent
-     * @param float  $start_time
-     * @return array
+     * @param string               $tool
+     * @param array<string, mixed> $args
+     * @param string               $client_ip
+     * @param string               $user_agent
+     * @param float                $start_time
+     * @param int                  $risk_tier
+     * @param array<string, mixed> $preflight
+     * @return array<string, mixed>
      */
-    public static function stage_action_for_approval(string $tool, array $args = [], string $client_ip = '127.0.0.1', string $user_agent = 'WebCare Agent Service', float $start_time = 0.0): array {
+    public static function stage_action_for_approval(
+        string $tool,
+        array $args = [],
+        string $client_ip = '127.0.0.1',
+        string $user_agent = 'WebCare Agent Service',
+        float $start_time = 0.0,
+        int $risk_tier = 3,
+        array $preflight = []
+    ): array {
         if ($start_time <= 0.0) {
             $start_time = microtime(true);
         }
@@ -996,6 +1188,10 @@ class MCPAgentService {
             'confirmation_token' => $confirmation_token,
             'tool'               => $tool,
             'args'               => $args,
+            'risk_tier'          => max(2, min(4, $risk_tier)),
+            'summary'            => sanitize_text_field((string) ($preflight['summary'] ?? '')),
+            'diff_preview'       => is_array($preflight['diff_preview'] ?? null) ? $preflight['diff_preview'] : [],
+            'warnings'           => is_array($preflight['warnings'] ?? null) ? $preflight['warnings'] : [],
             'client_ip'          => $client_ip,
             'user_agent'         => $user_agent,
             'status'             => 'pending_approval',
@@ -1023,7 +1219,7 @@ class MCPAgentService {
             'args'        => self::summarize_args($args),
             'duration_ms' => $duration_ms,
             'status'      => 'staged_for_approval',
-            'message'     => sprintf('Action staged for human approval (ID: %s)', $staged_id),
+            'message'     => sprintf('Action staged for human approval (Tier %d, ID: %s)', $risk_tier, $staged_id),
         ]);
 
         return [
@@ -1031,22 +1227,28 @@ class MCPAgentService {
             'isStaged'           => true,
             'staged_id'          => $staged_id,
             'tool'               => $tool,
+            'risk_tier'          => $staged_entry['risk_tier'],
             'status'             => 'pending_approval',
             'content'   => [
                 [
                     'type' => 'text',
                     'text' => sprintf(
-                        /* translators: 1: tool name, 2: staged action ID */
-                        __('Action Staged in Confirmation Gate: Tool "%1$s" modifies site security state and requires human approval. Staged Action ID: %2$s. An administrator must approve this action in WebCare Pro Security Console before execution.', 'webcare-pro-security'),
+                        /* translators: 1: tool name, 2: staged action ID, 3: risk tier number */
+                        __('Action Staged in Confirmation Gate (Tier %3$d): Tool "%1$s" requires administrator review in WP Admin. Staged Action ID: %2$s.', 'webcare-pro-security'),
                         sanitize_text_field($tool),
-                        $staged_id
+                        $staged_id,
+                        $staged_entry['risk_tier']
                     ),
                 ],
             ],
             'result' => [
-                'staged_id'          => $staged_id,
-                'status'             => 'pending_approval',
-                'description'        => 'Awaiting administrator confirmation in WebCare Console by an authenticated administrator session.',
+                'staged_id'    => $staged_id,
+                'risk_tier'    => $staged_entry['risk_tier'],
+                'summary'      => $staged_entry['summary'],
+                'diff_preview' => $staged_entry['diff_preview'],
+                'warnings'     => $staged_entry['warnings'],
+                'status'       => 'pending_approval',
+                'description'  => 'Awaiting administrator confirmation in WebCare Console by an authenticated administrator session.',
             ],
         ];
     }
@@ -1081,14 +1283,14 @@ class MCPAgentService {
 
     /**
      * Approve and execute a staged action.
-     * Validates that the executing session holds manage_options or provides the valid signed confirmation token.
+     * Requires active interactive WP Admin session, valid 24h TTL, and Step-Up Auth for Tier 4.
      *
      * @param string $staged_id
      * @param int    $approver_id
-     * @param string $token_override
+     * @param string $step_up_secret Password or 2FA TOTP code for Tier 4 actions
      * @return array
      */
-    public static function approve_staged_action(string $staged_id, int $approver_id = 0, string $token_override = ''): array {
+    public static function approve_staged_action(string $staged_id, int $approver_id = 0, string $step_up_secret = ''): array {
         $list = get_option(self::STAGED_OPTION_KEY, []);
         if (!is_array($list)) {
             return ['success' => false, 'message' => __('No staged actions found.', 'webcare-pro-security')];
@@ -1114,15 +1316,59 @@ class MCPAgentService {
             return ['success' => false, 'message' => sprintf(__('Action is already %s.', 'webcare-pro-security'), $target_action['status'])];
         }
 
-        // Cryptographic confirmation verification:
-        // Must strictly be called by an authenticated administrator with manage_options
-        $is_admin = function_exists('current_user_can') && current_user_can('manage_options');
+        if (!empty($target_action['expires_at']) && time() > (int) $target_action['expires_at']) {
+            $list[$target_index]['status'] = 'expired';
+            $list[$target_index]['confirmation_token'] = null;
+            update_option(self::STAGED_OPTION_KEY, $list, false);
+            return ['success' => false, 'message' => __('Staged action has expired (> 24 hours old) and cannot be executed.', 'webcare-pro-security')];
+        }
+
+        // Must strictly be called by an interactive authenticated administrator with manage_options
+        $is_admin = function_exists('is_user_logged_in') && is_user_logged_in()
+            && function_exists('current_user_can') && current_user_can('manage_options');
 
         if (!$is_admin) {
             return [
                 'success' => false,
-                'message' => __('Execution Rejected: Mutating actions require administrative authorization from an active administrator session.', 'webcare-pro-security'),
+                'message' => __('Execution Rejected: Staged actions require an active interactive WordPress administrator session.', 'webcare-pro-security'),
             ];
+        }
+
+        // Step-Up Verification for Tier 4 Destructive / Lockout-Critical Actions
+        $risk_tier = (int) ($target_action['risk_tier'] ?? self::get_tool_tier((string) ($target_action['tool'] ?? ''), is_array($target_action['args'] ?? null) ? $target_action['args'] : []));
+        if ($risk_tier >= 4) {
+            $uid = $approver_id > 0 ? $approver_id : get_current_user_id();
+            $step_up_ok = false;
+            $has_2fa = class_exists(TwoFactorAuth::class) && TwoFactorAuth::is_user_enabled($uid);
+            if ($step_up_secret !== '') {
+                if ($has_2fa) {
+                    $secret = TwoFactorAuth::get_user_secret($uid);
+                    $algo   = TwoFactorAuth::get_user_algorithm($uid);
+                    $digits = TwoFactorAuth::get_user_digits($uid);
+                    if (!empty($secret) && TwoFactorAuth::verify_code($secret, $step_up_secret, 1, $algo, $digits)) {
+                        $step_up_ok = true;
+                    } elseif (TwoFactorAuth::verify_and_consume_backup_code($uid, $step_up_secret)) {
+                        $step_up_ok = true;
+                    }
+                }
+                if (!$step_up_ok) {
+                    $user_obj = get_userdata($uid);
+                    if ($user_obj && wp_check_password($step_up_secret, $user_obj->user_pass, $uid)) {
+                        $step_up_ok = true;
+                    }
+                }
+            }
+            if (!$step_up_ok) {
+                return [
+                    'success'         => false,
+                    'step_up_required'=> true,
+                    'has_2fa'         => $has_2fa,
+                    'risk_tier'       => $risk_tier,
+                    'message'         => $has_2fa
+                        ? __('Tier 4 Destructive Action: Please confirm with your 2FA TOTP code or WordPress administrator password.', 'webcare-pro-security')
+                        : __('Tier 4 Destructive Action: Please confirm with your WordPress administrator password.', 'webcare-pro-security'),
+                ];
+            }
         }
 
         // Single-Use Atomic Invalidation: Mark token as consumed immediately before executing the tool to prevent replay attacks
@@ -1450,28 +1696,6 @@ class MCPAgentService {
             ];
         }
 
-        return [
-            'isError' => empty($res['success']),
-            'content' => [
-                [
-                    'type' => 'text',
-                    'text' => wp_json_encode($res, JSON_PRETTY_PRINT),
-                ],
-            ],
-            'result'  => $res,
-        ];
-    }
-
-    private static function tool_approve_staged_action(array $args): array {
-        $staged_id = sanitize_text_field($args['staged_id'] ?? '');
-        if (empty($staged_id)) {
-            return [
-                'isError' => true,
-                'content' => [['type' => 'text', 'text' => 'Missing parameter: staged_id']],
-            ];
-        }
-
-        $res = self::approve_staged_action($staged_id, get_current_user_id());
         return [
             'isError' => empty($res['success']),
             'content' => [
@@ -1842,5 +2066,226 @@ class MCPAgentService {
             ],
             'result'  => $res,
         ];
+    }
+
+    /**
+     * Evaluate payload-level anti-lockout invariants, taint escalation, and Before->After diffs.
+     *
+     * @param string               $tool
+     * @param array<string, mixed> $args
+     * @return array<string, mixed>
+     */
+    private static function preflight_guardrails(string $tool, array $args): array {
+        $out = [
+            'reject'        => false,
+            'message'       => '',
+            'escalate_tier' => 0,
+            'force_stage'   => false,
+            'summary'       => '',
+            'diff_preview'  => [],
+            'warnings'      => [],
+        ];
+
+        if ($tool === 'webcareproscan_update_plugin_settings') {
+            $updates = is_array($args['updates'] ?? null) ? $args['updates'] : [];
+            $check   = MCPSettingsPolicy::validate_and_classify_update($updates);
+            if (empty($check['valid'])) {
+                $out['reject']  = true;
+                $out['message'] = (string) ($check['message'] ?? __('Invalid setting update.', 'webcare-pro-security'));
+                return $out;
+            }
+            $out['diff_preview']  = $check['diff_preview'];
+            $out['escalate_tier'] = (int) $check['max_tier'];
+            if ((int) $check['max_tier'] >= 3) {
+                $out['force_stage'] = true;
+            }
+            $out['summary'] = sprintf(
+                /* translators: %s: comma-separated list of setting keys */
+                __('Update settings: %s', 'webcare-pro-security'),
+                implode(', ', array_keys($check['patch']))
+            );
+        } elseif ($tool === 'webcareproscan_save_custom_visual_rule') {
+            $lock_check = MCPAntiLockoutValidator::validate_custom_rule($args);
+            if (empty($lock_check['allowed'])) {
+                $out['reject']  = true;
+                $out['message'] = (string) $lock_check['reason'];
+                return $out;
+            }
+            if ((int) $lock_check['escalate_tier'] > 0) {
+                $out['escalate_tier'] = (int) $lock_check['escalate_tier'];
+                $out['force_stage']   = true;
+            }
+            $out['warnings'] = $lock_check['warnings'];
+            $out['summary']  = sprintf(
+                /* translators: %1$s: rule title, %2$s: action type */
+                __('Save custom firewall rule "%1$s" (%2$s)', 'webcare-pro-security'),
+                sanitize_text_field((string) ($args['title'] ?? 'Custom Rule')),
+                sanitize_key((string) ($args['action_type'] ?? 'block'))
+            );
+        } elseif ($tool === 'webcareproscan_manage_ip_access' || $tool === 'webcareproscan_sync_cloudflare_ip_ban') {
+            $action = sanitize_key((string) ($args['action'] ?? ''));
+            $ip     = trim((string) ($args['ip'] ?? ''));
+            if ($action === 'ban') {
+                $guard = MCPAntiLockoutValidator::validate_ip_ban($ip);
+                if (empty($guard['allowed'])) {
+                    $out['reject']  = true;
+                    $out['message'] = (string) $guard['reason'];
+                    return $out;
+                }
+            } elseif (in_array($action, ['unban', 'whitelist'], true)) {
+                $out['force_stage']   = true;
+                $out['escalate_tier'] = 3;
+                if ($ip !== '' && class_exists(PromptInjectionGuard::class) && PromptInjectionGuard::is_ip_flagged_in_recent_telemetry($ip)) {
+                    $out['warnings'][] = __('Tainted-Payload Guard: Target IP recently appeared in WAF / Prompt-Injection telemetry. Verify manually before approving.', 'webcare-pro-security');
+                }
+            }
+            $out['summary'] = strtoupper($action) . ' IP ' . sanitize_text_field($ip);
+        } elseif ($tool === 'webcareproscan_toggle_or_delete_custom_rule' && ($args['action'] ?? '') === 'delete') {
+            $out['escalate_tier'] = 4;
+            $out['force_stage']   = true;
+            $out['summary']       = 'Delete custom rule ' . sanitize_text_field((string) ($args['rule_id'] ?? ''));
+        } elseif ($tool === 'webcareproscan_delete_quarantined_file') {
+            $out['escalate_tier'] = 4;
+            $out['force_stage']   = true;
+            $out['summary']       = 'Permanently delete quarantined file #' . intval($args['quarantine_id'] ?? 0);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Apply a user-friendly governance preset across scope + per-tool matrix.
+     * Presets: 'observer' (Read-Only), 'guided' (Co-Pilot Staged), 'safe_operator' (Tier 2 Auto + Snapshots).
+     *
+     * @param string $preset
+     * @return array<string, mixed>
+     */
+    public static function apply_persona_preset(string $preset): array {
+        $preset = sanitize_key($preset);
+        if (!in_array($preset, ['observer', 'guided', 'safe_operator'], true)) {
+            return ['success' => false, 'message' => __('Invalid MCP persona preset.', 'webcare-pro-security')];
+        }
+
+        $catalog = self::get_registered_tool_map();
+        $matrix  = [];
+        $scope   = ($preset === 'observer') ? 'read_only' : 'read_write';
+
+        foreach ($catalog as $name => $meta) {
+            $is_mut = !empty($meta['isMutating']);
+            $tier   = (int) ($meta['tier'] ?? ($is_mut ? 2 : 1));
+            if (!$is_mut || $tier <= 1) {
+                $matrix[$name] = 'allowed';
+            } elseif ($preset === 'observer') {
+                $matrix[$name] = 'blocked';
+            } elseif ($preset === 'guided') {
+                $matrix[$name] = 'confirmation_required';
+            } else {
+                // Safe Operator: Tier 2 reversible writes run autonomously (with snapshots & anti-lockout), Tier 3/4 stay staged
+                $matrix[$name] = ($tier <= 2) ? 'allowed' : 'confirmation_required';
+            }
+        }
+
+        $clean_matrix = SettingsManager::sanitize_mcp_tool_matrix($matrix);
+        SettingsManager::save_settings([
+            'mcp_persona_preset'   => $preset,
+            'mcp_permission_scope' => $scope,
+            'mcp_tool_matrix'      => $clean_matrix,
+        ]);
+
+        return [
+            'success' => true,
+            'preset'  => $preset,
+            'scope'   => $scope,
+            'matrix'  => $clean_matrix,
+        ];
+    }
+
+    /**
+     * Unified JSON-RPC 2.0 MCP transport dispatcher supporting Claude Desktop, Cursor, Windsurf, and Antigravity.
+     *
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public static function handle_json_rpc(array $payload): array {
+        $id     = $payload['id'] ?? null;
+        $method = sanitize_text_field((string) ($payload['method'] ?? ''));
+        $params = is_array($payload['params'] ?? null) ? $payload['params'] : [];
+
+        if ($method === '') {
+            return [
+                'jsonrpc' => '2.0',
+                'id'      => $id,
+                'error'   => ['code' => -32600, 'message' => 'Invalid Request: missing method'],
+            ];
+        }
+
+        switch ($method) {
+            case 'initialize':
+                return [
+                    'jsonrpc' => '2.0',
+                    'id'      => $id,
+                    'result'  => [
+                        'protocolVersion' => '2024-11-05',
+                        'capabilities'    => [
+                            'tools' => ['listChanged' => false],
+                        ],
+                        'serverInfo'      => [
+                            'name'    => 'webcare-pro-security',
+                            'version' => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.12.0',
+                        ],
+                    ],
+                ];
+
+            case 'notifications/initialized':
+            case 'ping':
+                return [
+                    'jsonrpc' => '2.0',
+                    'id'      => $id,
+                    'result'  => new \stdClass(),
+                ];
+
+            case 'tools/list':
+                $catalog = self::get_tools_catalog();
+                $rpc_tools = [];
+                foreach ($catalog['tools'] as $t) {
+                    $rpc_tools[] = [
+                        'name'        => $t['name'],
+                        'description' => sprintf('[Tier %d | %s] %s', (int) ($t['tier'] ?? 1), strtoupper((string) ($t['policy'] ?? 'allowed')), (string) $t['description']),
+                        'inputSchema' => $t['inputSchema'],
+                    ];
+                }
+                return [
+                    'jsonrpc' => '2.0',
+                    'id'      => $id,
+                    'result'  => ['tools' => $rpc_tools],
+                ];
+
+            case 'tools/call':
+                $tool_name = sanitize_text_field((string) ($params['name'] ?? ''));
+                $tool_args = is_array($params['arguments'] ?? null) ? $params['arguments'] : [];
+                if ($tool_name === '') {
+                    return [
+                        'jsonrpc' => '2.0',
+                        'id'      => $id,
+                        'error'   => ['code' => -32602, 'message' => 'Invalid params: tool name required'],
+                    ];
+                }
+                $exec = self::execute_tool($tool_name, $tool_args);
+                return [
+                    'jsonrpc' => '2.0',
+                    'id'      => $id,
+                    'result'  => [
+                        'content' => $exec['content'] ?? [['type' => 'text', 'text' => (string) wp_json_encode($exec)]],
+                        'isError' => !empty($exec['isError']),
+                    ],
+                ];
+
+            default:
+                return [
+                    'jsonrpc' => '2.0',
+                    'id'      => $id,
+                    'error'   => ['code' => -32601, 'message' => sprintf('Method not found: %s', $method)],
+                ];
+        }
     }
 }

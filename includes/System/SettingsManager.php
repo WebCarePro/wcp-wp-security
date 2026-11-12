@@ -250,7 +250,11 @@ class SettingsManager {
             // 14. Model Context Protocol (MCP) Agent Service Surface
             'mcp_enabled'                        => true,
             'mcp_token'                          => '',
+            'mcp_token_created_at'               => 0,
+            'mcp_token_ttl_days'                 => 0,
+            'mcp_allowed_cidrs'                  => '',
             'mcp_permission_scope'               => 'read_only',
+            'mcp_persona_preset'                 => 'guided',
             'mcp_rate_limit_per_min'             => 60,
             'mcp_tool_matrix'                    => self::get_default_mcp_tool_matrix(),
 
@@ -450,25 +454,25 @@ class SettingsManager {
      * Default governance policy matrix for all MCP agent tools.
      */
     public static function get_default_mcp_tool_matrix(): array {
-        return [
-            'webcareproscan_get_security_posture'      => 'allowed',
-            'webcareproscan_list_findings'             => 'allowed',
-            'webcareproscan_audit_behavioral_baseline' => 'allowed',
-            'webcareproscan_get_containment_status'    => 'allowed',
-            'webcareproscan_list_staged_actions'       => 'allowed',
-            'webcareproscan_whitelist_finding'         => 'allowed',
-            'webcareproscan_rollback_remediation'      => 'confirmation_required',
-            'webcareproscan_deploy_virtual_patch'      => 'confirmation_required',
-            'webcareproscan_quarantine_file'           => 'confirmation_required',
-            'webcareproscan_run_security_drill'        => 'allowed',
+        $matrix = [
+            // Existing Core Tools
+            'webcareproscan_get_security_posture'           => 'allowed',
+            'webcareproscan_list_findings'                  => 'allowed',
+            'webcareproscan_audit_behavioral_baseline'      => 'allowed',
+            'webcareproscan_get_containment_status'         => 'allowed',
+            'webcareproscan_list_staged_actions'            => 'allowed',
+            'webcareproscan_whitelist_finding'              => 'confirmation_required',
+            'webcareproscan_rollback_remediation'           => 'confirmation_required',
+            'webcareproscan_deploy_virtual_patch'           => 'confirmation_required',
+            'webcareproscan_quarantine_file'                => 'confirmation_required',
+            'webcareproscan_run_security_drill'             => 'allowed',
             'webcareproscan_set_containment_mode'           => 'confirmation_required',
-            'webcareproscan_approve_staged_action'          => 'confirmation_required',
             'webcareproscan_get_supply_chain_sbom'          => 'allowed',
             'webcareproscan_get_gatekeeper_history'         => 'allowed',
             'webcareproscan_recalibrate_sbom_baseline'      => 'confirmation_required',
             'webcareproscan_quarantine_supply_chain_anchor' => 'confirmation_required',
             'webcareproscan_get_behavioral_waf_status'      => 'allowed',
-            'webcareproscan_set_route_learning_status'       => 'confirmation_required',
+            'webcareproscan_set_route_learning_status'      => 'confirmation_required',
             'webcareproscan_get_identity_forensics'         => 'allowed',
             'webcareproscan_revoke_user_session'            => 'confirmation_required',
             'webcareproscan_grant_ephemeral_elevation'      => 'confirmation_required',
@@ -478,7 +482,38 @@ class SettingsManager {
             'webcareproscan_synthesize_virtual_patch'       => 'confirmation_required',
             'webcareproscan_test_virtual_patch'             => 'allowed',
             'webcareproscan_deploy_synthesized_patch'       => 'confirmation_required',
+            // Expanded Governed Full-Plugin Tools
+            'webcareproscan_get_settings_catalog'           => 'allowed',
+            'webcareproscan_update_plugin_settings'         => 'confirmation_required',
+            'webcareproscan_get_server_hardening_status'    => 'allowed',
+            'webcareproscan_apply_htaccess_hardening'       => 'confirmation_required',
+            'webcareproscan_start_security_scan'            => 'confirmation_required',
+            'webcareproscan_get_scan_status'                => 'allowed',
+            'webcareproscan_explain_finding'                => 'allowed',
+            'webcareproscan_manage_scan_exclusions'         => 'confirmation_required',
+            'webcareproscan_export_security_report'         => 'allowed',
+            'webcareproscan_list_quarantine_items'          => 'allowed',
+            'webcareproscan_restore_quarantined_file'       => 'confirmation_required',
+            'webcareproscan_delete_quarantined_file'        => 'confirmation_required',
+            'webcareproscan_repair_official_file'           => 'confirmation_required',
+            'webcareproscan_list_waf_incidents'             => 'allowed',
+            'webcareproscan_manage_ip_access'               => 'confirmation_required',
+            'webcareproscan_get_cloudflare_status'          => 'allowed',
+            'webcareproscan_sync_cloudflare_ip_ban'         => 'confirmation_required',
+            'webcareproscan_list_mcp_snapshots'             => 'allowed',
+            'webcareproscan_undo_last_mcp_change'           => 'confirmation_required',
         ];
+
+        if (class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')) {
+            foreach (\WebCareProScanner\Core\ModuleRegistry::get_mcp_tools() as $mt) {
+                $t_name = (string) ($mt['name'] ?? '');
+                if ($t_name !== '' && !isset($matrix[$t_name])) {
+                    $matrix[$t_name] = !empty($mt['isMutating']) ? 'confirmation_required' : 'allowed';
+                }
+            }
+        }
+
+        return $matrix;
     }
 
     /**
@@ -486,11 +521,21 @@ class SettingsManager {
      */
     public static function sanitize_mcp_tool_matrix(array $matrix): array {
         $valid_policies = ['allowed', 'confirmation_required', 'blocked'];
+        $tier4_locked   = [
+            'webcareproscan_delete_quarantined_file',
+            'webcareproscan_set_containment_mode',
+            'webcareproscan_grant_ephemeral_elevation',
+            'webcareproscan_quarantine_supply_chain_anchor',
+        ];
         $defaults = self::get_default_mcp_tool_matrix();
         $clean = [];
         foreach ($defaults as $tool => $def_policy) {
             $incoming = $matrix[$tool] ?? $def_policy;
-            $clean[$tool] = in_array($incoming, $valid_policies, true) ? $incoming : $def_policy;
+            $policy   = in_array($incoming, $valid_policies, true) ? $incoming : $def_policy;
+            if (in_array($tool, $tier4_locked, true) && $policy === 'allowed') {
+                $policy = 'confirmation_required';
+            }
+            $clean[$tool] = $policy;
         }
         return $clean;
     }
@@ -1033,6 +1078,7 @@ class SettingsManager {
         $clean['mcp_enabled'] = !empty($merged['mcp_enabled']);
         $mcp_tok = trim($input['mcp_token'] ?? '');
         $is_masked_mcp = (strpos($mcp_tok, '••••') !== false);
+        $token_rotated = false;
         if ((empty($mcp_tok) || $is_masked_mcp) && !empty($current['mcp_token'])) {
             $raw_existing = $current['mcp_token'];
             $clean['mcp_token'] = \WebCareProScanner\Security\SecretVault::is_encrypted($raw_existing)
@@ -1041,6 +1087,7 @@ class SettingsManager {
         } elseif (!empty($mcp_tok) && !$is_masked_mcp) {
             $sanitized_tok = sanitize_text_field($mcp_tok);
             $clean['mcp_token'] = \WebCareProScanner\Security\SecretVault::encrypt($sanitized_tok);
+            $token_rotated = true;
         } else {
             // Keep existing token if present in current settings
             if (!empty($current['mcp_token'])) {
@@ -1048,8 +1095,22 @@ class SettingsManager {
             } else {
                 $new_mcp_plain = 'webcareproscan_mcp_' . bin2hex(random_bytes(16));
                 $clean['mcp_token'] = \WebCareProScanner\Security\SecretVault::encrypt($new_mcp_plain);
+                $token_rotated = true;
             }
         }
+
+        $clean['mcp_token_created_at'] = $token_rotated
+            ? time()
+            : max(0, intval($merged['mcp_token_created_at'] ?? ($current['mcp_token_created_at'] ?? 0)));
+        $valid_ttls = [0, 7, 30, 90, 365];
+        $ttl_cand   = intval($merged['mcp_token_ttl_days'] ?? ($current['mcp_token_ttl_days'] ?? 0));
+        $clean['mcp_token_ttl_days'] = in_array($ttl_cand, $valid_ttls, true) ? $ttl_cand : max(0, min(365, $ttl_cand));
+        $clean['mcp_allowed_cidrs']  = sanitize_textarea_field((string) ($merged['mcp_allowed_cidrs'] ?? ($current['mcp_allowed_cidrs'] ?? '')));
+
+        $valid_personas = ['observer', 'guided', 'safe_operator'];
+        $clean['mcp_persona_preset'] = in_array($merged['mcp_persona_preset'] ?? '', $valid_personas, true)
+            ? $merged['mcp_persona_preset']
+            : ($current['mcp_persona_preset'] ?? 'guided');
 
         $valid_scopes = ['read_only', 'read_write'];
         $clean['mcp_permission_scope'] = in_array($merged['mcp_permission_scope'] ?? '', $valid_scopes, true)

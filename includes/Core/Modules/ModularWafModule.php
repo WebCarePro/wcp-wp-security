@@ -1,12 +1,14 @@
 <?php
 namespace WebCareProScanner\Core\Modules;
 
+use WebCareProScanner\Api\MCPAntiLockoutValidator;
 use WebCareProScanner\Contracts\RequestContext;
 use WebCareProScanner\Contracts\SecurityModuleInterface;
 use WebCareProScanner\Contracts\WafEvaluatorInterface;
 use WebCareProScanner\Contracts\WafVerdict;
 use WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer;
 use WebCareProScanner\Firewall\Modular\VisualRuleExpressionEngine;
+use WebCareProScanner\Security\PromptInjectionGuard;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -170,6 +172,82 @@ class ModularWafModule implements SecurityModuleInterface, WafEvaluatorInterface
                 ],
                 'handler'     => [__CLASS__, 'mcp_toggle_or_delete_custom_rule'],
             ],
+            [
+                'name'        => 'webcareproscan_list_modular_baseline_rules',
+                'description' => 'List auto-synthesized AST baseline modular rules (MOD-AJAX-*, MOD-REST-*, MOD-ABSPATH-*, MOD-CVE-*, MOD-UPLOAD-*, MOD-EGRESS-*) with category, mode, and benign hit counts.',
+                'category'    => 'read',
+                'tier'        => 1,
+                'isMutating'  => false,
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'category' => [
+                            'type'        => 'string',
+                            'description' => 'Optional category filter (ajax, rest, abspath, cve, upload, egress).',
+                        ],
+                    ],
+                ],
+                'handler'     => [__CLASS__, 'mcp_list_modular_baseline_rules'],
+            ],
+            [
+                'name'        => 'webcareproscan_toggle_modular_baseline_rule',
+                'description' => 'Switch an existing AST baseline modular rule mode (enforce, smart_learning, monitor, off) and optionally tune rate_limit, ban_ttl, or sync_cloudflare.',
+                'category'    => 'mutating',
+                'tier'        => 2,
+                'isMutating'  => true,
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'rule_id'         => ['type' => 'string', 'description' => 'Target baseline rule ID (e.g. MOD-AJAX-...).'],
+                        'mode'            => ['type' => 'string', 'enum' => ['enforce', 'smart_learning', 'monitor', 'off']],
+                        'rate_limit'      => ['type' => 'integer', 'description' => 'Optional requests/min rate limit (0 for immediate block).'],
+                        'ban_ttl'         => ['type' => 'integer', 'description' => 'Optional IP ban duration in seconds.'],
+                        'sync_cloudflare' => ['type' => 'boolean', 'description' => 'Optional Cloudflare IP ban sync toggle.'],
+                    ],
+                    'required' => ['rule_id', 'mode'],
+                ],
+                'handler'     => [__CLASS__, 'mcp_toggle_modular_baseline_rule'],
+            ],
+            [
+                'name'        => 'webcareproscan_apply_recommended_modular_rules',
+                'description' => 'Bulk-apply recommended enforcement modes across synthesized AST baseline rules.',
+                'category'    => 'mutating',
+                'tier'        => 3,
+                'isMutating'  => true,
+                'inputSchema' => ['type' => 'object', 'properties' => new \stdClass()],
+                'handler'     => [__CLASS__, 'mcp_apply_recommended_modular_rules'],
+            ],
+            [
+                'name'        => 'webcareproscan_activate_cve_virtual_shield',
+                'description' => 'Activate a targeted MOD-CVE-* virtual shield for a vulnerable installed plugin or theme slug.',
+                'category'    => 'mutating',
+                'tier'        => 2,
+                'isMutating'  => true,
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'slug' => ['type' => 'string', 'description' => 'Installed plugin or theme folder slug.'],
+                        'type' => ['type' => 'string', 'enum' => ['plugin', 'theme'], 'default' => 'plugin'],
+                    ],
+                    'required' => ['slug'],
+                ],
+                'handler'     => [__CLASS__, 'mcp_activate_cve_virtual_shield'],
+            ],
+            [
+                'name'        => 'webcareproscan_toggle_modular_autopilot',
+                'description' => 'Enable or disable Smart 48-Hour Auto-Pilot automatic baseline rule promotion.',
+                'category'    => 'mutating',
+                'tier'        => 3,
+                'isMutating'  => true,
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'enabled' => ['type' => 'boolean'],
+                    ],
+                    'required' => ['enabled'],
+                ],
+                'handler'     => [__CLASS__, 'mcp_toggle_modular_autopilot'],
+            ],
         ];
     }
 
@@ -241,6 +319,9 @@ class ModularWafModule implements SecurityModuleInterface, WafEvaluatorInterface
             'conditions'  => $parsed['conditions'],
             'group_logic' => $parsed['group_logic'],
         ], $limit);
+        if (class_exists(PromptInjectionGuard::class)) {
+            $sim = PromptInjectionGuard::sanitize_mcp_telemetry($sim);
+        }
         return self::format_mcp_result([
             'success'          => true,
             'format'           => $parsed['format'],
@@ -269,6 +350,15 @@ class ModularWafModule implements SecurityModuleInterface, WafEvaluatorInterface
                 if (empty($payload[$mk])) {
                     $payload[$mk] = $mv;
                 }
+            }
+        }
+        if (class_exists(MCPAntiLockoutValidator::class)) {
+            $lock_check = MCPAntiLockoutValidator::validate_custom_rule($payload);
+            if (empty($lock_check['allowed'])) {
+                return self::format_mcp_result([
+                    'success' => false,
+                    'message' => $lock_check['reason'],
+                ]);
             }
         }
         $res = ModularFirewallSynthesizer::create_custom_rule($payload);
@@ -304,6 +394,87 @@ class ModularWafModule implements SecurityModuleInterface, WafEvaluatorInterface
             $res = ModularFirewallSynthesizer::toggle_rule($rule_id, $action);
         }
         return self::format_mcp_result($res);
+    }
+
+    /** @param array<string, mixed> $args */
+    public static function mcp_list_modular_baseline_rules(array $args): array {
+        $cat_filter = sanitize_key((string) ($args['category'] ?? ''));
+        $all_rules  = ModularFirewallSynthesizer::get_active_rules();
+        $baseline   = [];
+        foreach ($all_rules as $r) {
+            if (!empty($r['is_custom']) || ($r['category'] ?? '') === 'custom') {
+                continue;
+            }
+            if ($cat_filter !== '' && strtolower((string) ($r['category'] ?? '')) !== $cat_filter) {
+                continue;
+            }
+            $baseline[] = [
+                'id'               => $r['id'] ?? '',
+                'category'         => $r['category'] ?? '',
+                'title'            => $r['title'] ?? '',
+                'component_slug'   => $r['component_slug'] ?? '',
+                'target_uri'       => $r['target_uri'] ?? '',
+                'current_mode'     => $r['current_mode'] ?? 'off',
+                'recommended_mode' => $r['recommended_mode'] ?? 'monitor',
+                'rate_limit'       => (int) ($r['rate_limit'] ?? 0),
+                'ban_ttl'          => (int) ($r['ban_ttl'] ?? 0),
+                'sync_cloudflare'  => !empty($r['sync_cloudflare']),
+            ];
+        }
+        return self::format_mcp_result([
+            'success'           => true,
+            'autopilot_enabled' => ModularFirewallSynthesizer::is_autopilot_enabled(),
+            'baseline_rules'    => $baseline,
+            'count'             => count($baseline),
+        ]);
+    }
+
+    /** @param array<string, mixed> $args */
+    public static function mcp_toggle_modular_baseline_rule(array $args): array {
+        $rule_id = sanitize_text_field((string) ($args['rule_id'] ?? ''));
+        $mode    = sanitize_key((string) ($args['mode'] ?? 'monitor'));
+        if ($rule_id === '' || !in_array($mode, ['enforce', 'smart_learning', 'monitor', 'off'], true)) {
+            return self::format_mcp_result([
+                'success' => false,
+                'message' => __('Valid baseline rule_id and mode (enforce, smart_learning, monitor, off) are required.', 'webcare-pro-security'),
+            ]);
+        }
+        $params = [];
+        if (isset($args['rate_limit'])) {
+            $params['rate_limit'] = max(0, intval($args['rate_limit']));
+        }
+        if (isset($args['ban_ttl'])) {
+            $params['ban_ttl'] = max(0, min(2592000, intval($args['ban_ttl'])));
+        }
+        if (isset($args['sync_cloudflare'])) {
+            $params['sync_cloudflare'] = !empty($args['sync_cloudflare']);
+        }
+        return self::format_mcp_result(ModularFirewallSynthesizer::toggle_rule($rule_id, $mode, $params));
+    }
+
+    /** @param array<string, mixed> $args */
+    public static function mcp_apply_recommended_modular_rules(array $args): array {
+        unset($args);
+        return self::format_mcp_result(ModularFirewallSynthesizer::bulk_apply_recommendations());
+    }
+
+    /** @param array<string, mixed> $args */
+    public static function mcp_activate_cve_virtual_shield(array $args): array {
+        $slug = sanitize_key((string) ($args['slug'] ?? ''));
+        $type = sanitize_key((string) ($args['type'] ?? 'plugin'));
+        if ($slug === '' || !in_array($type, ['plugin', 'theme'], true)) {
+            return self::format_mcp_result([
+                'success' => false,
+                'message' => __('Valid plugin/theme slug and type (plugin or theme) are required.', 'webcare-pro-security'),
+            ]);
+        }
+        return self::format_mcp_result(ModularFirewallSynthesizer::activate_cve_shield($slug, $type));
+    }
+
+    /** @param array<string, mixed> $args */
+    public static function mcp_toggle_modular_autopilot(array $args): array {
+        $enabled = !empty($args['enabled']);
+        return self::format_mcp_result(ModularFirewallSynthesizer::set_autopilot_enabled($enabled));
     }
 
     public function compile_preload_ast(): array {
