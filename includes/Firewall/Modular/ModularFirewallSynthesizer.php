@@ -1453,7 +1453,28 @@ class ModularFirewallSynthesizer {
         }
 
         $category     = isset($data['category']) ? sanitize_key($data['category']) : 'custom';
-        $rule_id      = 'MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false));
+        $incoming_id  = isset($data['id']) ? sanitize_text_field(wp_unslash((string) $data['id'])) : '';
+        $rules        = self::get_active_rules();
+        $edit_index   = null;
+        $existing_ts  = time();
+
+        if ($incoming_id !== '') {
+            foreach ($rules as $idx => $existing_rule) {
+                if (($existing_rule['id'] ?? '') === $incoming_id && !empty($existing_rule['is_custom'])) {
+                    $edit_index  = $idx;
+                    $existing_ts = (int) ($existing_rule['synthesized_at'] ?? time());
+                    break;
+                }
+            }
+            if ($edit_index === null) {
+                return [
+                    'success' => false,
+                    'message' => __('Editable custom rule not found.', 'webcare-pro-security'),
+                ];
+            }
+        }
+
+        $rule_id      = ($edit_index !== null) ? $incoming_id : ('MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false)));
         $raw_mode     = isset($data['current_mode']) ? sanitize_key($data['current_mode']) : 'enforce';
         $valid_actions = ['block', 'block_and_ban', 'rate_limit', 'payload_inspect', 'challenge_pow', 'monitor', 'allow'];
         $rate_limit   = max(0, intval($data['rate_limit'] ?? 0));
@@ -1528,20 +1549,31 @@ class ModularFirewallSynthesizer {
             'wirefilter_expr'  => $wirefilter_expr,
             'exempt_rules'     => $exempt_rules,
             'is_custom'        => true,
-            'synthesized_at'   => time(),
+            'synthesized_at'   => $existing_ts,
+            'updated_at'       => time(),
         ];
 
-        $rules = self::get_active_rules();
-        $rules[] = $rule;
+        if ($edit_index !== null) {
+            $rules[$edit_index] = $rule;
+        } else {
+            $rules[] = $rule;
+        }
         self::save_rules($rules);
 
         return [
             'success' => true,
-            'message' => sprintf(
-                /* translators: %s: rule ID */
-                __('Custom modular rule "%s" created successfully.', 'webcare-pro-security'),
-                $rule_id
-            ),
+            'updated' => ($edit_index !== null),
+            'message' => ($edit_index !== null)
+                ? sprintf(
+                    /* translators: %s: rule ID */
+                    __('Custom modular rule "%s" updated successfully.', 'webcare-pro-security'),
+                    $rule_id
+                )
+                : sprintf(
+                    /* translators: %s: rule ID */
+                    __('Custom modular rule "%s" created successfully.', 'webcare-pro-security'),
+                    $rule_id
+                ),
             'rule'    => $rule,
         ];
     }
