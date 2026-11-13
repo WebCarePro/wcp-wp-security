@@ -1,4 +1,37 @@
 ﻿v:2.14.0 - 2026-11-14
+- Deep Audit Security & Data Integrity Remediation (WCP-01 through WCP-10):
+  * WCP-01 & WCP-10 (Atomic DB-First Quarantine & Verified Stream Handling):
+    - Guaranteed zero data loss by recording quarantine metadata in the database before deleting original files; failed DB inserts immediately preserve the source file.
+    - Added byte count and SHA-256 verification on >20 MB stream copy operations during both quarantine and restore.
+    - Resolved restore blocking for false-positive unknown files in wp-admin/ and wp-includes/ while strictly preventing overwriting official WordPress.org checksum files.
+    - Normalized permission restoration across file_permissions and file_perms properties.
+  * WCP-08 & WCP-09 (Rogue File Deletion & 14-Day Vault Backup Guarantee):
+    - Made 14-day WebCare Vault backup creation mandatory prior to unlinking in RemediationManager::delete_file(); failed backups halt deletion cleanly.
+    - Protected WebCare Pro plugin files (/plugins/webcare-pro-security/), official WordPress Core files in wp-admin/wp-includes/, and modified official files requiring repair from rogue deletion.
+    - Added stream backup support for >20 MB files with try/catch encryption exception safety and time-based retention pruning (>14 days).
+  * WCP-02 (Trusted Proxy GeoIP & ASN Header Validation):
+    - Gated HTTP_CF_IPCOUNTRY, HTTP_CF_IPASN, and HTTP_CF_RAY extraction in MicroWafCompiler, RequestContext, and VisualRuleExpressionEngine strictly behind verified Cloudflare or custom proxy CIDRs, preventing forged header bypasses on direct-to-origin traffic.
+  * WCP-03 (Outbound SSRF Loopback Guard Hardening):
+    - Stripped request-controlled HTTP_HOST from outbound allowed web ports.
+    - Required both an authorized WordPress loopback path and a verified site port for same-host requests, blocking internal SSRF attacks targeting sensitive services (e.g. Redis, Docker, Consul).
+  * WCP-04 (Comprehensive Secret-Key Vault Rotation):
+    - Expanded VaultRotator field registry to cover deepseek_api_key, openrouter_api_key, mcp_token, tamper_webhook_url, dynamic encrypted settings, and encrypted disk archives (<20 MB quarantined files and remediation backups).
+  * WCP-05 (Recursive Telemetry Prompt Injection Sanitization):
+    - Fixed scanner result key mapping (is_safe and risk_score) in PromptInjectionGuard.
+    - Added recursive branch taint tracking so numeric array elements and nested fields under untrusted keys are safely neutralized.
+  * WCP-06 (Transactional Remediation & MCP Containment):
+    - Enforced PathValidator::is_inside_root() and realpath() on TransactionalRemediation file snapshots, blocking traversal outside ABSPATH.
+    - Revalidated rollback target paths with is_safe_write_target() before restoring files.
+    - Required successful pre-remediation safety snapshots in MCPAgentService::tool_quarantine_file().
+  * WCP-07 (WebAuthn User Verification & Origin Enforcement):
+    - Set WebAuthn login assertion userVerification to 'required'.
+    - Required User Verified flag (Bit 2, 0x04) in authenticator data alongside User Presence (Bit 0, 0x01).
+    - Enforced full normalized origin comparison (scheme://host[:port]) against home_url() and site_url().
+- Four-Boundary Model Context Protocol (MCP) Runtime Security Hardening:
+  * Boundary 1 (Untrusted-Data Taint Tracking): Added session taint tracking via 120-second transient markers (webcareproscan_mcp_tainted_<token_hash>) whenever an MCP read tool returns untrusted external evidence (security logs, scanner findings, quarantine metadata, or behavioral telemetry).
+  * Boundary 2 (Scoped Token Authorization Ceilings): Enforced strict scope ceilings in verify_mcp_permission() across read_only (Tier 1 reads only), safe_operator (Tier 1 reads + Tier 2 reversible actions, with Tier 3+ forced to staging), and staged_proposer (Tier 1 reads + Tier 2–4 staged proposals with zero live writes).
+  * Boundary 3 (Taint-Aware Dynamic Escalation): Integrated automatic risk escalation in preflight_guardrails(), forcing staging (force_stage = true) on permissive or mutating operations (unban, whitelist, allow rules, quarantine restores, file deletions, setting modifications) during an active tainted session.
+  * Boundary 4 (Interactive WP Admin Approval Enforcement): Hardened approve_staged_action() to strictly reject calls carrying Bearer tokens, requiring an active interactive WordPress administrator session (is_user_logged_in() && current_user_can('manage_options')).
 - Custom Firewall Rules Complete Rebranding & User Experience Alignment:
   * Renamed "Visual Rule Studio" throughout the entire codebase, navigation tabs, and system modules to "Custom Firewall Rules" for maximum clarity for non-technical users.
   * Updated builder headers to clearly distinguish "Create Custom Firewall Rule" and "Edit Custom Firewall Rule · ID #X".

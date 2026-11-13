@@ -393,12 +393,9 @@ class OutboundEgressFirewall {
             if ($site_port > 0 && !in_array($site_port, $allowed_web_ports, true)) {
                 $allowed_web_ports[] = $site_port;
             }
-            // If the incoming HTTP host has a port (e.g. localhost:8282), allow it as well
-            if (!empty($_SERVER['HTTP_HOST'])) {
-                $raw_host_port = (int) (wp_parse_url('http://' . sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])), PHP_URL_PORT) ?: 0);
-                if ($raw_host_port > 0 && !in_array($raw_host_port, $allowed_web_ports, true)) {
-                    $allowed_web_ports[] = $raw_host_port;
-                }
+            $admin_site_port = (int) (wp_parse_url(site_url(), PHP_URL_PORT) ?: 0);
+            if ($admin_site_port > 0 && !in_array($admin_site_port, $allowed_web_ports, true)) {
+                $allowed_web_ports[] = $admin_site_port;
             }
             if (!empty($_SERVER['SERVER_PORT'])) {
                 $server_port = (int) $_SERVER['SERVER_PORT'];
@@ -406,20 +403,34 @@ class OutboundEgressFirewall {
                     $allowed_web_ports[] = $server_port;
                 }
             }
+            // SECURITY INVARIANT (WCP-03): Never read $_SERVER['HTTP_HOST'] to populate $allowed_web_ports.
 
-            // High-risk internal ports that should never be probed even on same host (e.g., Redis, Memcached, MySQL, Postgres, MongoDB, Elastic)
-            $restricted_internal_ports = [3306, 5432, 6379, 11211, 27017, 9200, 22, 23, 21];
+            // High-risk internal ports that should never be probed even on same host (e.g., Redis, Memcached, MySQL, Postgres, MongoDB, Elastic, Docker, Consul)
+            $restricted_internal_ports = [
+                21, 22, 23, 2375, 2376, 3306, 5432, 6379,
+                8500, 9000, 9200, 11211, 15672, 27017, 27018,
+            ];
             // Restrict port 25 unless caller is a verified mailer contacting an approved mail relay
             if (!($is_mailer && $is_host_approved)) {
                 $restricted_internal_ports[] = 25;
             }
 
             $is_same_host = ($host === $site_host) || in_array($host, ['localhost', '127.0.0.1', '::1'], true);
-            $is_wp_cron_or_loopback = (strpos($request_path, 'wp-cron.php') !== false) || (strpos($request_path, 'wp-admin') !== false) || (strpos($request_path, 'wp-json') !== false);
+            $normalized_req_path = '/' . ltrim($request_path, '/');
+            $is_wp_cron_or_loopback = (
+                $normalized_req_path === '/wp-cron.php' ||
+                str_starts_with($normalized_req_path, '/wp-admin/admin-ajax.php') ||
+                str_starts_with($normalized_req_path, '/wp-admin/admin-post.php') ||
+                $normalized_req_path === '/wp-json' ||
+                str_starts_with($normalized_req_path, '/wp-json/')
+            );
+
+            $is_allowed_loopback_port = ($port === null || in_array($port, $allowed_web_ports, true))
+                && ($port === null || !in_array($port, $restricted_internal_ports, true));
 
             // Same-host loopbacks (e.g. wp-cron.php, site-health loopback checks, REST background calls)
-            // are legitimate WordPress internal self-requests unless explicitly probing a database/cache service port.
-            if ($is_same_host && ($port === null || !in_array($port, $restricted_internal_ports, true)) && ($is_wp_cron_or_loopback || in_array($port, $allowed_web_ports, true))) {
+            // require BOTH an authorized WordPress loopback path AND a verified site port
+            if ($is_same_host && $is_wp_cron_or_loopback && $is_allowed_loopback_port) {
                 // Legitimate internal self-request to site itself; do not treat as external SSRF
             } else {
                 // 1. Restricted Port Defense: Port 25, DB, and cache service ports blocked unconditionally

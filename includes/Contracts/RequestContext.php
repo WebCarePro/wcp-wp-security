@@ -75,6 +75,9 @@ class RequestContext {
     /** @var bool */
     public bool $hasWooCart = false;
 
+    /** @var bool */
+    public bool $cf_proxied = false;
+
     /**
      * Build a RequestContext from current PHP / WordPress superglobals.
      *
@@ -101,10 +104,13 @@ class RequestContext {
         $ctx->userAgent    = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
         $ctx->referer      = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
         $ctx->cookieHeader = isset($_SERVER['HTTP_COOKIE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_COOKIE'])) : '';
-        $ctx->country      = strtoupper(isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY'])) : '');
-
-        $raw_asn = isset($_SERVER['HTTP_CF_IPASN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPASN'])) : '';
-        $ctx->asn = $raw_asn !== '' ? ltrim(strtoupper($raw_asn), 'AS') : '';
+        $remote_peer     = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $trusted_proxy   = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            && \WebCareProScanner\Firewall\FirewallEngine::is_trusted_proxy($remote_peer);
+        $ctx->country    = $trusted_proxy && isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY']))) : '';
+        $raw_asn         = $trusted_proxy && isset($_SERVER['HTTP_CF_IPASN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPASN'])) : '';
+        $ctx->asn        = $raw_asn !== '' ? ltrim(strtoupper($raw_asn), 'AS') : '';
+        $ctx->cf_proxied = $trusted_proxy && !empty($_SERVER['HTTP_CF_RAY']);
 
         foreach ($_SERVER as $k => $v) {
             if (is_string($k) && strpos($k, 'HTTP_') === 0 && is_string($v)) {

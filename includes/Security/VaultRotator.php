@@ -126,12 +126,7 @@ class VaultRotator {
 
         // Fetch encrypted settings keys from webcareproscan_settings
         $settings = get_option(\WebCareProScanner\System\SettingsManager::OPTION_KEY, []);
-        $secret_fields = [
-            'gemini_api_key', 'openai_api_key', 'claude_api_key',
-            'cloudflare_api_token', 'cloudflare_zone_id',
-            'slack_webhook_url', 'discord_webhook_url',
-            'clickup_webhook_url', 'asana_webhook_url', 'generic_webhook_url'
-        ];
+        $secret_fields = self::get_rotatable_secret_fields($settings);
 
         $processed = 0;
         $modified_settings = false;
@@ -217,12 +212,7 @@ class VaultRotator {
         $new_binary_key = strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true);
 
         $settings = get_option(\WebCareProScanner\System\SettingsManager::OPTION_KEY, []);
-        $secret_fields = [
-            'gemini_api_key', 'openai_api_key', 'claude_api_key',
-            'cloudflare_api_token', 'cloudflare_zone_id',
-            'slack_webhook_url', 'discord_webhook_url',
-            'clickup_webhook_url', 'asana_webhook_url', 'generic_webhook_url'
-        ];
+        $secret_fields = self::get_rotatable_secret_fields($settings);
 
         $all_verified = true;
         foreach ($secret_fields as $field) {
@@ -435,6 +425,111 @@ class VaultRotator {
         delete_transient(self::NEW_KEY_BLOB);
         delete_transient(self::EPHEMERAL_KEY_PREFIX . 'old');
         delete_transient(self::EPHEMERAL_KEY_PREFIX . 'new');
+    }
+
+    /**
+     * Return all setting keys that store SecretVault ciphertexts (static + dynamic discovery).
+     */
+    private static function get_rotatable_secret_fields(array $settings): array {
+        $fields = [
+            'gemini_api_key',
+            'openai_api_key',
+            'claude_api_key',
+            'deepseek_api_key',
+            'openrouter_api_key',
+            'mcp_token',
+            'cloudflare_api_token',
+            'cloudflare_zone_id',
+            'slack_webhook_url',
+            'discord_webhook_url',
+            'clickup_webhook_url',
+            'asana_webhook_url',
+            'generic_webhook_url',
+            'tamper_webhook_url',
+        ];
+
+        foreach ($settings as $k => $v) {
+            if (is_string($k) && is_string($v) && SecretVault::is_encrypted($v) && !in_array($k, $fields, true)) {
+                $fields[] = $k;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Re-encrypt <20MB quarantined files and remediation backup snapshots under the new key.
+     */
+    private static function rotate_encrypted_disk_archives(string $old_binary_key, string $new_binary_key): array {
+        $result     = ['rotated' => 0, 'failed' => []];
+        $upload_dir = wp_upload_dir();
+        $base_dir   = trailingslashit($upload_dir['basedir']);
+        $candidates = array_merge(
+            @glob($base_dir . 'webcare-quarantine/*.vault*') ?: [],
+            @glob($base_dir . 'webcare-pro-security/.vault/*.quarantine*') ?: [],
+            @glob($base_dir . 'webcare-pro-security/.backups/remediation/*.bak.php') ?: []
+        );
+
+        $halt_marker = '__halt_compiler(); ?' . '>';
+        foreach ($candidates as $file_path) {
+            if (!is_file($file_path) || is_link($file_path)) {
+                continue;
+            }
+            $size = (int) @filesize($file_path);
+            if ($size <= 0 || $size > 20971520) {
+                continue;
+            }
+            $raw = @file_get_contents($file_path);
+            if ($raw === false) {
+                continue;
+            }
+            $pos = strpos($raw, $halt_marker);
+            if ($pos === false) {
+                continue;
+            }
+            $split_pos = $pos + strlen($halt_marker);
+            while ($split_pos < strlen($raw) && ($raw[$split_pos] === "\r" || $raw[$split_pos] === "\n")) {
+                $split_pos++;
+            }
+            $header  = substr($raw, 0, $split_pos);
+            $payload = substr($raw, $split_pos);
+
+            if (!SecretVault::is_encrypted($payload)) {
+                continue;
+            }
+            if (self::is_under_key($payload, $new_binary_key)) {
+                $result['rotated']++;
+                continue;
+            }
+
+            $plain = SecretVault::decrypt_with_key($payload, $old_binary_key);
+            if ($plain === false) {
+                $result['failed'][] = 'archive:' . basename($file_path);
+                continue;
+            }
+
+            try {
+                $reencrypted = SecretVault::encrypt_with_key($plain, $new_binary_key);
+                $temp_file   = $file_path . '.rot_' . bin2hex(random_bytes(4));
+                $new_content = $header . $reencrypted;
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+                if (@file_put_contents($temp_file, $new_content, LOCK_EX) === strlen($new_content)) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+                    if (@rename($temp_file, $file_path)) {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                        @chmod($file_path, 0600);
+                        $result['rotated']++;
+                        continue;
+                    }
+                }
+                wp_delete_file($temp_file);
+                $result['failed'][] = 'archive:' . basename($file_path);
+            } catch (\Throwable $e) {
+                $result['failed'][] = 'archive:' . basename($file_path);
+            }
+        }
+
+        return $result;
     }
 
     /**

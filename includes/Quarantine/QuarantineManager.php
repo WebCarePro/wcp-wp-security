@@ -138,45 +138,65 @@ class QuarantineManager {
         $dest_path = $this->quarantine_dir . '/' . $safe_filename;
         $guard_header = "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
 
+        $temp_dest = $dest_path . '.webcare_tmp_' . bin2hex(random_bytes(6));
+
         // For large files (>20MB), stream directly with guard header to prevent PHP memory exhaustion (OOM)
         if ($file_size > 20971520) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
             $src_fp = @fopen($real_path, 'rb');
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-            $dst_fp = @fopen($dest_path, 'wb');
-            if (!$src_fp || !$dst_fp) {
-                if ($src_fp) {
-                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-                    fclose($src_fp);
-                }
-                if ($dst_fp) {
-                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-                    fclose($dst_fp);
-                }
-                return ['success' => false, 'message' => 'Failed to isolate large file to vault storage. Permission denied.'];
+            if (!$src_fp) {
+                return ['success' => false, 'message' => 'Failed to open source file stream for quarantine.'];
             }
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Stream write required for chunked processing of large files (>20MB) to prevent memory exhaustion
-            fwrite($dst_fp, $guard_header);
-            stream_copy_to_stream($src_fp, $dst_fp);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+            $dst_fp = @fopen($temp_dest, 'wb');
+            if (!$dst_fp) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($src_fp);
+                return ['success' => false, 'message' => 'Failed to write large file to quarantine storage. Permission denied.'];
+            }
+
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Stream write required for chunked processing of large files (>20MB)
+            $header_bytes = fwrite($dst_fp, $guard_header);
+            $copied_bytes = stream_copy_to_stream($src_fp, $dst_fp);
+            fflush($dst_fp);
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($src_fp);
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($dst_fp);
+
+            if ($header_bytes !== strlen($guard_header) || $copied_bytes === false || (int) $copied_bytes !== $file_size) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'message' => 'Quarantine stream verification failed: byte count mismatch during vault write.'];
+            }
         } else {
             // Read file contents before isolation
             $file_content = @file_get_contents($real_path);
             if ($file_content === false) {
-                return ['success' => false, 'message' => 'Failed to read target file. Permission denied.'];
+                return ['success' => false, 'message' => 'Failed to read source file for quarantine. Permission denied.'];
             }
 
             // Encrypt file contents using SecretVault (AES-256-GCM authenticated AEAD encryption)
-            $encrypted_payload = \WebCareProScanner\Security\SecretVault::encrypt($file_content);
+            try {
+                $encrypted_payload = \WebCareProScanner\Security\SecretVault::encrypt($file_content);
+            } catch (\Throwable $e) {
+                return ['success' => false, 'message' => 'Encryption failed during quarantine: ' . $e->getMessage()];
+            }
+
             $vault_payload = $guard_header . $encrypted_payload;
 
-            // Write encrypted payload to protected vault
-            if (@file_put_contents($dest_path, $vault_payload, LOCK_EX) === false) {
-                return ['success' => false, 'message' => 'Failed to isolate file to encrypted vault storage. Permission denied.'];
+            // Write encrypted payload to temporary protected vault file
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+            $written = @file_put_contents($temp_dest, $vault_payload, LOCK_EX);
+            if ($written === false || $written !== strlen($vault_payload)) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'message' => 'Failed to write file to encrypted vault storage. Permission denied.'];
             }
+        }
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic filesystem rename from temp file to final destination
+        if (!@rename($temp_dest, $dest_path)) {
+            wp_delete_file($temp_dest);
+            return ['success' => false, 'message' => 'Failed to finalize quarantine file atomically.'];
         }
 
         // Lock down permissions on vault file
@@ -188,10 +208,7 @@ class QuarantineManager {
             @chmod($dest_path, 0600);
         }
 
-        // Unlink original infected/suspicious file
-        wp_delete_file($real_path);
-
-        // Record in database - ensure single authoritative record per original_path
+        // Record in database - ensure single authoritative record per original_path BEFORE unlinking original file
         $table = $wpdb->prefix . 'webcareproscan_quarantine';
 
         // Check if previous records exist for this exact file path to avoid duplicates
@@ -220,6 +237,7 @@ class QuarantineManager {
             );
         }
 
+        // Record in database BEFORE unlinking the original file so a DB error never causes data loss (WCP-01)
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $inserted = $wpdb->insert($table, [
             'scan_id'             => $scan_id,
@@ -234,7 +252,35 @@ class QuarantineManager {
             'quarantined_at_gmt'  => gmdate('Y-m-d H:i:s'),
         ]);
 
-        $quarantine_id = $wpdb->insert_id;
+        $quarantine_id = (int) $wpdb->insert_id;
+        if ($inserted === false || $quarantine_id <= 0) {
+            wp_delete_file($dest_path);
+            return [
+                'success' => false,
+                'message' => 'Database error: Could not record quarantine entry. Original file was left untouched.',
+            ];
+        }
+
+        // Unlink original infected/suspicious file and verify removal
+        wp_delete_file($real_path);
+        clearstatcache(true, $real_path);
+        if (file_exists($real_path)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->delete($table, ['id' => $quarantine_id], ['%d']);
+            wp_delete_file($dest_path);
+            return [
+                'success' => false,
+                'message' => 'Failed to remove original file from filesystem; quarantine record rolled back.',
+            ];
+        }
+
+        // Flush bytecode caches ONLY after original file is confirmed deleted
+        if (function_exists('opcache_invalidate')) {
+            @opcache_invalidate($real_path, true);
+        }
+        if (function_exists('apc_delete_file')) {
+            @apc_delete_file($real_path);
+        }
 
         // Update issue status
         $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';
@@ -324,11 +370,20 @@ class QuarantineManager {
         $real_root = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
         $normalized_dest = wp_normalize_path($dest_path);
 
-        // Prohibit restoring directly into WordPress core directories
+        // Prohibit overwriting official WordPress core files inside wp-admin / wp-includes,
+        // while allowing restoration of false-positive custom/unknown files that are not part of core checksums (WCP-10).
         $wp_includes_dir = wp_normalize_path(untrailingslashit(ABSPATH . WPINC)) . '/';
-        $wp_admin_dir = wp_normalize_path(untrailingslashit(ABSPATH . 'wp-admin')) . '/';
+        $wp_admin_dir    = wp_normalize_path(untrailingslashit(ABSPATH . 'wp-admin')) . '/';
         if (strpos($normalized_dest, $wp_includes_dir) === 0 || strpos($normalized_dest, $wp_admin_dir) === 0) {
-            return ['success' => false, 'message' => 'Action Blocked: Cannot restore files directly into WordPress core system directories.'];
+            $provider       = new \WebCareProScanner\Integrity\ChecksumProvider();
+            $core_checksums = $provider->get_core_checksums();
+            $rel_file       = ltrim(str_replace($real_root, '', $normalized_dest), '/');
+            if ((!empty($core_checksums) && isset($core_checksums[$rel_file])) || file_exists($dest_path)) {
+                return [
+                    'success' => false,
+                    'message' => 'Action Blocked: Cannot overwrite an existing or official WordPress core file in wp-admin/wp-includes.',
+                ];
+            }
         }
 
         // Ensure destination directory exists
@@ -336,6 +391,10 @@ class QuarantineManager {
         if (!is_dir($dest_dir)) {
             wp_mkdir_p($dest_dir);
         }
+
+        $expected_hash = (string) ($record['sha256'] ?? $record['file_hash'] ?? '');
+        $raw_perms     = $record['file_permissions'] ?? $record['file_perms'] ?? '';
+        $perms         = !empty($raw_perms) ? octdec((string) $raw_perms) : 0644;
 
         $source_size = (int) @filesize($source_path);
         if ($source_size > 20971520) {
@@ -347,7 +406,7 @@ class QuarantineManager {
             }
 
             // Seek past guard header
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Stream read required to inspect halt marker on large files (>20MB) without loading into memory
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Stream read required to inspect halt marker on large files (>20MB)
             $header_buffer = fread($src_fp, 2048);
             $halt_marker = '__halt_compiler(); ' . '?>';
             $pos = strpos($header_buffer, $halt_marker);
@@ -370,11 +429,25 @@ class QuarantineManager {
                 return ['success' => false, 'message' => 'Failed to create destination stream for large file restoration.'];
             }
 
-            stream_copy_to_stream($src_fp, $dst_fp);
+            $copied_bytes = stream_copy_to_stream($src_fp, $dst_fp);
+            fflush($dst_fp);
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($src_fp);
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($dst_fp);
+
+            if ($copied_bytes === false || $copied_bytes <= 0) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'message' => 'Stream copy failed while restoring large file from quarantine.'];
+            }
+
+            if ($expected_hash !== '') {
+                $restored_hash = @hash_file('sha256', $temp_dest);
+                if ($restored_hash === false || !hash_equals($expected_hash, $restored_hash)) {
+                    wp_delete_file($temp_dest);
+                    return ['success' => false, 'message' => 'Integrity check failed: Restored large file SHA-256 does not match quarantine record.'];
+                }
+            }
 
             global $wp_filesystem;
             if (empty($wp_filesystem)) {
@@ -382,7 +455,6 @@ class QuarantineManager {
                 WP_Filesystem();
             }
 
-            $perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
             if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
                 $wp_filesystem->chmod($temp_dest, $perms);
             } else {
@@ -395,7 +467,7 @@ class QuarantineManager {
                 $moved = $wp_filesystem->move($temp_dest, $dest_path, true);
             }
             if (!$moved) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic filesystem rename fallback when WP_Filesystem::move is unavailable
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic filesystem rename fallback
                 $moved = @rename($temp_dest, $dest_path);
             }
 
@@ -429,8 +501,14 @@ class QuarantineManager {
                 $clean_data = $payload;
             }
 
+            if ($expected_hash !== '') {
+                $restored_hash = hash('sha256', $clean_data);
+                if (!hash_equals($expected_hash, $restored_hash)) {
+                    return ['success' => false, 'message' => 'Integrity check failed: Decrypted payload SHA-256 does not match quarantine record.'];
+                }
+            }
+
             // Atomically write restored plaintext to original destination, preventing symlink follower races
-            $perms = !empty($record['file_perms']) ? octdec($record['file_perms']) : 0644;
             if (!\WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
                 return ['success' => false, 'message' => 'Failed to safely restore file to original location. Check directory permissions.'];
             }

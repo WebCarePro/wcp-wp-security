@@ -106,28 +106,43 @@ class TransactionalRemediation {
         }
 
         $clean_path = ltrim(str_replace(['../', '..\\'], '', $file_path), '/\\');
-        $full_path = wp_normalize_path(ABSPATH . $clean_path);
+        $candidate  = file_exists(ABSPATH . $clean_path) ? (ABSPATH . $clean_path) : $file_path;
 
-        if (!file_exists($full_path) && file_exists($file_path)) {
-            $full_path = wp_normalize_path($file_path);
-        }
-
-        if (!file_exists($full_path) || !is_file($full_path)) {
+        if (!is_string($candidate) || $candidate === '' || is_link($candidate)) {
             return false;
         }
 
-        $backup_key = 'f_' . count($manifest['items']) . '_' . basename($full_path) . '.bak';
+        $real_path = realpath($candidate);
+        if ($real_path === false || !is_file($real_path)) {
+            return false;
+        }
+
+        $full_path = wp_normalize_path($real_path);
+        if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($full_path, ABSPATH, false)) {
+            return false;
+        }
+
+        $protected_basenames = ['wp-config.php', '.htaccess', '.user.ini', 'php.ini', '.env'];
+        if (in_array(strtolower(basename($full_path)), $protected_basenames, true)) {
+            return false;
+        }
+
+        $backup_key  = 'f_' . count($manifest['items']) . '_' . basename($full_path) . '.bak';
         $backup_path = $tx_dir . '/files/' . $backup_key;
 
         // Perform byte-for-byte copy
         if (!@copy($full_path, $backup_path)) {
             return false;
         }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+        @chmod($backup_path, 0600);
+
+        $rel_path = ltrim(str_replace(wp_normalize_path(ABSPATH), '', $full_path), '/');
 
         $manifest['items'][] = [
             'type'            => 'file',
             'action'          => $action_type,
-            'target_path'     => $clean_path,
+            'target_path'     => $rel_path,
             'original_abs'    => $full_path,
             'backup_filename' => $backup_key,
             'original_hash'   => hash_file('sha256', $full_path),
@@ -329,6 +344,11 @@ class TransactionalRemediation {
             if ($type === 'file') {
                 $target_abs  = $item['original_abs'] ?? '';
                 $backup_file = $tx_dir . '/files/' . ($item['backup_filename'] ?? '');
+
+                if (!\WebCareProScanner\Filesystem\PathValidator::is_safe_write_target($target_abs, ABSPATH)) {
+                    $errors[] = sprintf('Refusing rollback write outside ABSPATH boundary for file: %s', esc_html($target_abs));
+                    continue;
+                }
 
                 if (file_exists($backup_file)) {
                     // Ensure directory exists

@@ -624,6 +624,8 @@ class RemediationManager {
      * @return array
      */
     public function delete_file($file_path, $issue_id = null) {
+        global $wpdb;
+
         $real_path = realpath($file_path);
         if (!$real_path) {
             $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
@@ -631,7 +633,7 @@ class RemediationManager {
                 $real_path = realpath($candidate);
             }
         }
-        if (!$real_path || !file_exists($real_path)) {
+        if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
             return ['success' => false, 'message' => __('Target file does not exist on server.', 'webcare-pro-security')];
         }
 
@@ -639,25 +641,78 @@ class RemediationManager {
             return ['success' => false, 'message' => __('Action Blocked: File is outside WordPress root directory.', 'webcare-pro-security')];
         }
 
-        // Prevent accidental deletion of protected core WordPress files
+        $normalized_real = wp_normalize_path($real_path);
+        $real_root       = rtrim(wp_normalize_path(realpath(ABSPATH) ?: ABSPATH), '/') . '/';
+
+        // 1. Never allow deleting WebCare Pro's own plugin files (WCP-09)
+        if (strpos($normalized_real, '/plugins/webcare-pro-security/') !== false) {
+            return ['success' => false, 'message' => __('Action Blocked: Cannot delete WebCare Pro Security plugin files.', 'webcare-pro-security')];
+        }
+
+        // 2. Prevent accidental deletion of protected root bootstrap files
         $base_name = strtolower(basename($real_path));
         $protected_files = [
             'wp-config.php', 'wp-settings.php', 'wp-load.php', 'index.php', '.htaccess',
-            'wp-blog-header.php', 'wp-login.php', 'wp-cron.php', 'xmlrpc.php'
+            'wp-blog-header.php', 'wp-login.php', 'wp-cron.php', 'xmlrpc.php', '.user.ini', 'php.ini',
         ];
         if (in_array($base_name, $protected_files, true)) {
-            return ['success' => false, 'message' => sprintf(
-                /* translators: %s: file basename */
-                __('Action Blocked: %s is a protected WordPress core system file and cannot be deleted.', 'webcare-pro-security'),
-                $base_name
-            )];
+            return [
+                'success' => false,
+                'message' => sprintf(
+                    /* translators: %s: file basename */
+                    __('Action Blocked: %s is a protected WordPress core system file and cannot be deleted.', 'webcare-pro-security'),
+                    $base_name
+                ),
+            ];
         }
 
-        // Take safety backup snapshot in WebCare Vault
-        $backup_res = $this->create_file_backup($real_path, 'delete_rogue_file');
-        $backup_id = !empty($backup_res['backup_id']) ? $backup_res['backup_id'] : null;
+        // 3. Prevent deleting official WordPress Core files inside wp-admin or wp-includes (WCP-09)
+        $wp_includes_dir = wp_normalize_path(untrailingslashit(ABSPATH . WPINC)) . '/';
+        $wp_admin_dir    = wp_normalize_path(untrailingslashit(ABSPATH . 'wp-admin')) . '/';
+        if (strpos($normalized_real, $wp_includes_dir) === 0 || strpos($normalized_real, $wp_admin_dir) === 0) {
+            $provider       = new \WebCareProScanner\Integrity\ChecksumProvider();
+            $core_checksums = $provider->get_core_checksums();
+            $rel_file       = ltrim(str_replace($real_root, '', $normalized_real), '/');
+            if (!empty($core_checksums) && isset($core_checksums[$rel_file])) {
+                return [
+                    'success' => false,
+                    'message' => sprintf(
+                        /* translators: %s: relative core file path */
+                        __('Action Blocked: "%s" is an official WordPress core file. Use Repair Core instead of Delete Rogue File.', 'webcare-pro-security'),
+                        $rel_file
+                    ),
+                ];
+            }
+        }
 
-        // Unlink the file
+        // 4. Prevent deleting modified official files that require Auto-Cure restoration (WCP-09)
+        if ($issue_id) {
+            $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+            $issue_sql    = "SELECT type FROM {$table_issues} WHERE id = %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $issue = $wpdb->get_row(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($issue_sql, (int) $issue_id)
+            );
+            if ($issue && (strpos((string) $issue->type, 'modified_') === 0 || $issue->type === 'injected_wp_config')) {
+                return [
+                    'success' => false,
+                    'message' => __('Action Blocked: Modified official files cannot be deleted. Please use Repair/Restore instead.', 'webcare-pro-security'),
+                ];
+            }
+        }
+
+        // 5. Enforce mandatory 14-day safety snapshot in WebCare Vault BEFORE unlinking (WCP-08)
+        $backup_res = $this->create_file_backup($real_path, 'delete_rogue_file');
+        if (empty($backup_res['success']) || empty($backup_res['backup_id'])) {
+            return [
+                'success' => false,
+                'message' => __('Action Aborted: Could not create the mandatory 14-day safety backup in WebCare Vault. The file was not deleted.', 'webcare-pro-security'),
+            ];
+        }
+        $backup_id = $backup_res['backup_id'];
+
+        // 6. Unlink the file and verify removal
         $unlinked = wp_delete_file($real_path);
         clearstatcache(true, $real_path);
 
@@ -668,7 +723,7 @@ class RemediationManager {
                     /* translators: %s: file basename */
                     __('Failed to delete %s. Check server filesystem write permissions.', 'webcare-pro-security'),
                     basename($real_path)
-                )
+                ),
             ];
         }
 
@@ -678,7 +733,7 @@ class RemediationManager {
             'success'   => true,
             'message'   => sprintf(
                 /* translators: %s: file basename */
-                __('Rogue file %s was permanently deleted from your server. A safety snapshot was retained in WebCare Vault.', 'webcare-pro-security'),
+                __('Rogue file %s was permanently deleted from your server. A 14-day safety snapshot was retained in WebCare Vault.', 'webcare-pro-security'),
                 basename($real_path)
             ),
             'backup_id' => $backup_id,
@@ -938,20 +993,65 @@ class RemediationManager {
      */
     public function create_file_backup($file_path, $action_type) {
         $backup_id = uniqid('rem_', true);
-        $filename = basename($file_path) . '_' . gmdate('Ymd_His') . '_' . substr(md5($backup_id), 0, 8) . '.bak.php';
+        $filename  = basename($file_path) . '_' . gmdate('Ymd_His') . '_' . substr(md5($backup_id), 0, 8) . '.bak.php';
         $dest_path = $this->backup_dir . '/' . $filename;
 
-        $content = @file_get_contents($file_path);
-        if ($content === false) {
+        $file_size = (int) @filesize($file_path);
+        $sha256    = @hash_file('sha256', $file_path) ?: '';
+        if ($sha256 === '') {
             return ['success' => false];
         }
 
         $guard = "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
-        $encrypted = \WebCareProScanner\Security\SecretVault::encrypt($content);
 
-        if (@file_put_contents($dest_path, $guard . $encrypted, LOCK_EX) === false) {
-            return ['success' => false];
+        if ($file_size > 20971520) {
+            // Stream large file backup (>20MB) to prevent OOM
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+            $src_fp = @fopen($file_path, 'rb');
+            if (!$src_fp) {
+                return ['success' => false];
+            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+            $dst_fp = @fopen($dest_path, 'wb');
+            if (!$dst_fp) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($src_fp);
+                return ['success' => false];
+            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+            $hdr_written  = fwrite($dst_fp, $guard);
+            $copied_bytes = stream_copy_to_stream($src_fp, $dst_fp);
+            fflush($dst_fp);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($src_fp);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($dst_fp);
+
+            if ($hdr_written !== strlen($guard) || $copied_bytes === false || (int) $copied_bytes !== $file_size) {
+                wp_delete_file($dest_path);
+                return ['success' => false];
+            }
+        } else {
+            $content = @file_get_contents($file_path);
+            if ($content === false) {
+                return ['success' => false];
+            }
+
+            try {
+                $encrypted = \WebCareProScanner\Security\SecretVault::encrypt($content);
+            } catch (\Throwable $e) {
+                return ['success' => false];
+            }
+
+            $payload = $guard . $encrypted;
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+            $written = @file_put_contents($dest_path, $payload, LOCK_EX);
+            if ($written === false || $written !== strlen($payload)) {
+                wp_delete_file($dest_path);
+                return ['success' => false];
+            }
         }
+
         global $wp_filesystem;
         if (empty($wp_filesystem)) {
             require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -969,19 +1069,36 @@ class RemediationManager {
             $backups = [];
         }
 
+        $now_ts = time();
         $backups[$backup_id] = [
-            'id'            => $backup_id,
-            'original_path' => $file_path,
-            'backup_path'   => $dest_path,
-            'backup_file'   => $filename,
-            'action_type'   => $action_type,
-            'created_at'    => current_time('mysql'),
-            'size'          => strlen($content),
-            'sha256'        => hash('sha256', $content),
+            'id'             => $backup_id,
+            'original_path'  => $file_path,
+            'backup_path'    => $dest_path,
+            'backup_file'    => $filename,
+            'action_type'    => $action_type,
+            'created_at'     => current_time('mysql'),
+            'created_at_ts'  => $now_ts,
+            'expires_at_ts'  => $now_ts + (14 * DAY_IN_SECONDS),
+            'size'           => $file_size,
+            'sha256'         => $sha256,
         ];
 
-        // Keep last 100 backups
-        if (count($backups) > 100) {
+        // Prune expired backups (>14 days old) first; only evict oldest if over 250 entries
+        $retention_cutoff = $now_ts - (14 * DAY_IN_SECONDS);
+        foreach ($backups as $bid => $bmeta) {
+            if ($bid === $backup_id) {
+                continue;
+            }
+            $bts = isset($bmeta['created_at_ts']) ? (int) $bmeta['created_at_ts'] : strtotime((string) ($bmeta['created_at'] ?? ''));
+            if ($bts > 0 && $bts < $retention_cutoff) {
+                if (!empty($bmeta['backup_path']) && file_exists($bmeta['backup_path'])) {
+                    wp_delete_file($bmeta['backup_path']);
+                }
+                unset($backups[$bid]);
+            }
+        }
+
+        while (count($backups) > 250) {
             $oldest = array_shift($backups);
             if (!empty($oldest['backup_path']) && file_exists($oldest['backup_path'])) {
                 wp_delete_file($oldest['backup_path']);

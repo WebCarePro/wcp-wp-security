@@ -1112,7 +1112,7 @@ class SettingsManager {
             ? $merged['mcp_persona_preset']
             : ($current['mcp_persona_preset'] ?? 'guided');
 
-        $valid_scopes = ['read_only', 'read_write'];
+        $valid_scopes = ['read_only', 'safe_operator', 'staged_proposer', 'read_write'];
         $clean['mcp_permission_scope'] = in_array($merged['mcp_permission_scope'] ?? '', $valid_scopes, true)
             ? $merged['mcp_permission_scope']
             : ($current['mcp_permission_scope'] ?? 'read_only');

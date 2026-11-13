@@ -541,8 +541,8 @@ class MicroWafCompiler {
         $out .= "            \$vis_ua    = (string) (\$_SERVER['HTTP_USER_AGENT'] ?? '');\n";
         $out .= "            \$vis_ref   = (string) (\$_SERVER['HTTP_REFERER'] ?? '');\n";
         $out .= "            \$vis_ck    = (string) (\$_SERVER['HTTP_COOKIE'] ?? '');\n";
-        $out .= "            \$vis_cc    = strtoupper((string) (\$_SERVER['HTTP_CF_IPCOUNTRY'] ?? ''));\n";
-        $out .= "            \$vis_asn   = ltrim(strtoupper((string) (\$_SERVER['HTTP_CF_IPASN'] ?? '')), 'AS');\n";
+        $out .= "            \$vis_cc    = (\$is_cf_ip || \$is_custom_proxy) ? strtoupper((string) (\$_SERVER['HTTP_CF_IPCOUNTRY'] ?? '')) : '';\n";
+        $out .= "            \$vis_asn   = (\$is_cf_ip || \$is_custom_proxy) ? ltrim(strtoupper((string) (\$_SERVER['HTTP_CF_IPASN'] ?? '')), 'AS') : '';\n";
         $out .= "            \$vis_exts  = [];\n";
         $out .= "            if (!empty(\$_FILES) && is_array(\$_FILES)) {\n";
         $out .= "                foreach (\$_FILES as \$vf) {\n";

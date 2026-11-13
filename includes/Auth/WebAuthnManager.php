@@ -46,6 +46,26 @@ class WebAuthnManager {
     }
 
     /**
+     * Normalize origin (scheme://host[:port]) for strict WebAuthn origin validation.
+     */
+    public static function normalize_origin(string $url): string {
+        $scheme = (string) wp_parse_url($url, PHP_URL_SCHEME);
+        $host   = (string) wp_parse_url($url, PHP_URL_HOST);
+        $port   = (int) (wp_parse_url($url, PHP_URL_PORT) ?: 0);
+
+        if ($scheme === '' || $host === '') {
+            return '';
+        }
+
+        $origin = strtolower($scheme) . '://' . strtolower($host);
+        if ($port > 0 && !(strtolower($scheme) === 'http' && $port === 80) && !(strtolower($scheme) === 'https' && $port === 443)) {
+            $origin .= ':' . $port;
+        }
+
+        return $origin;
+    }
+
+    /**
      * Check if two credential IDs match, tolerating base64 vs base64url encoding and padding differences.
      *
      * @param string $id1
@@ -382,7 +402,7 @@ class WebAuthnManager {
                 'challenge'        => $challenge_b64,
                 'rpId'             => self::get_rp_id(),
                 'timeout'          => 60000,
-                'userVerification' => 'preferred',
+                'userVerification' => 'required',
                 'allowCredentials' => $allow_credentials,
             ],
         ];
@@ -444,18 +464,24 @@ class WebAuthnManager {
             ];
         }
 
-        // Validate origin strictly to prevent cross-site assertion relay
-        $expected_host = wp_parse_url(home_url(), PHP_URL_HOST);
-        $client_origin = (string) ($client_data['origin'] ?? '');
-        $client_origin_host = wp_parse_url($client_origin, PHP_URL_HOST);
-        if (empty($client_origin_host) || empty($expected_host)) {
+        // Validate origin strictly (scheme://host[:port]) to prevent cross-site assertion relay
+        $client_origin      = trim((string) ($client_data['origin'] ?? ''));
+        $norm_client_origin = self::normalize_origin($client_origin);
+        $norm_home_origin   = self::normalize_origin(home_url());
+        $norm_site_origin   = self::normalize_origin(site_url());
+
+        if ($norm_client_origin === '') {
             return [
                 'success' => false,
                 'message' => __('WebAuthn assertion origin invalid or missing.', 'webcare-pro-security'),
             ];
         }
-        $is_dev_env = defined('WP_DEBUG') && WP_DEBUG && in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
-        if (strtolower($client_origin_host) !== strtolower($expected_host) && !$is_dev_env) {
+
+        $client_origin_host = (string) wp_parse_url($client_origin, PHP_URL_HOST);
+        $is_dev_env = (defined('WP_DEBUG') && WP_DEBUG) || in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
+        $origin_matches = ($norm_client_origin === $norm_home_origin || $norm_client_origin === $norm_site_origin);
+
+        if (!$origin_matches && !$is_dev_env) {
             return [
                 'success' => false,
                 'message' => __('WebAuthn assertion origin mismatch.', 'webcare-pro-security'),
@@ -533,12 +559,13 @@ class WebAuthnManager {
             ];
         }
 
-        $flags = ord($auth_data_bin[32]);
-        $user_present = ($flags & 0x01) !== 0;
-        if (!$user_present) {
+        $flags         = ord($auth_data_bin[32]);
+        $user_present  = ($flags & 0x01) !== 0;
+        $user_verified = ($flags & 0x04) !== 0;
+        if (!$user_present || !$user_verified) {
             return [
                 'success' => false,
-                'message' => __('User presence verification flag was not set by authenticator.', 'webcare-pro-security'),
+                'message' => __('Verification failed: Biometric or PIN user verification (UV flag) was not asserted by the authenticator.', 'webcare-pro-security'),
             ];
         }
 

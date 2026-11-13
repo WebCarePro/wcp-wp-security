@@ -172,6 +172,112 @@ class MCPAgentService {
     }
 
     /**
+     * Compute SHA-256 session token hash from Bearer header or client IP.
+     *
+     * @return string
+     */
+    public static function get_current_session_token_hash(): string {
+        $auth_header = isset($_SERVER['HTTP_AUTHORIZATION'])
+            ? (string) wp_unslash($_SERVER['HTTP_AUTHORIZATION'])
+            : (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? (string) wp_unslash($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) : '');
+        if (!empty($auth_header) && preg_match('/Bearer\s+(\S+)/i', $auth_header, $m)) {
+            return hash('sha256', $m[1]);
+        }
+        $ip = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::get_client_ip()
+            : (isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '127.0.0.1');
+        return hash('sha256', 'mcp_session_' . $ip);
+    }
+
+    /**
+     * Check if the current MCP session is marked as tainted by untrusted external evidence.
+     *
+     * @return bool
+     */
+    public static function is_session_tainted(): bool {
+        $hash = self::get_current_session_token_hash();
+        return (bool) get_transient('webcareproscan_mcp_tainted_' . $hash);
+    }
+
+    /**
+     * Mark the current MCP session as tainted for the given TTL (default: 120s).
+     *
+     * @param int $ttl
+     * @return void
+     */
+    public static function mark_session_tainted(int $ttl = 120): void {
+        $hash = self::get_current_session_token_hash();
+        set_transient('webcareproscan_mcp_tainted_' . $hash, time(), $ttl);
+    }
+
+    /**
+     * Enforce Boundary 2: Scoped Token Authorization hard ceilings.
+     *
+     * @param string               $tool
+     * @param array<string, mixed> $args
+     * @param int                  $dynamic_tier
+     * @return array{allowed: bool, force_stage: bool, reason: string}
+     */
+    public static function verify_mcp_permission(string $tool, array $args = [], int $dynamic_tier = 1): array {
+        $catalog = self::get_registered_tool_map();
+        $is_mut  = !empty($catalog[$tool]['isMutating']);
+        $scope   = SettingsManager::get('mcp_permission_scope', 'read_only');
+        $persona = SettingsManager::get('mcp_persona_preset', 'guided');
+
+        // Normalize effective scope
+        $effective_scope = $scope;
+        if ($scope === 'read_only' || $persona === 'observer') {
+            $effective_scope = 'read_only';
+        } elseif ($scope === 'staged_proposer') {
+            $effective_scope = 'staged_proposer';
+        } elseif ($scope === 'safe_operator' || $persona === 'safe_operator') {
+            $effective_scope = 'safe_operator';
+        }
+
+        // Scope 1: read_only - Tier 1 tools only (zero mutating actions)
+        if ($effective_scope === 'read_only') {
+            if ($is_mut || $dynamic_tier > 1) {
+                return [
+                    'allowed'     => false,
+                    'force_stage' => false,
+                    'reason'      => sprintf(
+                        /* translators: %s: tool name */
+                        __('Scope Violation: MCP token scope is "read_only". Mutating tool "%s" is blocked.', 'webcare-pro-security'),
+                        $tool
+                    ),
+                ];
+            }
+            return ['allowed' => true, 'force_stage' => false, 'reason' => ''];
+        }
+
+        // Scope 2: staged_proposer - Tier 1 reads + Tier 2-4 staged proposals only (zero live unconfirmed writes)
+        if ($effective_scope === 'staged_proposer') {
+            if ($is_mut || $dynamic_tier > 1) {
+                return [
+                    'allowed'     => true,
+                    'force_stage' => true,
+                    'reason'      => __('Scope Policy: "staged_proposer" requires all mutating actions to be staged for human review.', 'webcare-pro-security'),
+                ];
+            }
+            return ['allowed' => true, 'force_stage' => false, 'reason' => ''];
+        }
+
+        // Scope 3: safe_operator - Tier 1 + Tier 2 reversible tools; Tier 3+ always staged
+        if ($effective_scope === 'safe_operator') {
+            if ($dynamic_tier >= 3) {
+                return [
+                    'allowed'     => true,
+                    'force_stage' => true,
+                    'reason'      => __('Scope Policy: "safe_operator" requires all Tier 3+ actions to be staged for human review.', 'webcare-pro-security'),
+                ];
+            }
+            return ['allowed' => true, 'force_stage' => false, 'reason' => ''];
+        }
+
+        return ['allowed' => true, 'force_stage' => false, 'reason' => ''];
+    }
+
+    /**
      * Retrieve current tool policy: 'allowed' | 'confirmation_required' | 'blocked' | 'unknown'.
      *
      * @param string $tool
@@ -190,6 +296,12 @@ class MCPAgentService {
 
         if ($scope === 'read_only' && $is_mut) {
             return 'blocked';
+        }
+        if ($scope === 'staged_proposer' && $is_mut) {
+            return 'confirmation_required';
+        }
+        if ($scope === 'safe_operator' && $tier >= 3) {
+            return 'confirmation_required';
         }
 
         $matrix = SettingsManager::get('mcp_tool_matrix', []);
@@ -955,6 +1067,33 @@ class MCPAgentService {
             $dynamic_tier = (int) $preflight['escalate_tier'];
         }
 
+        // Boundary 2: Scoped Token Authorization Check
+        $scope_check = self::verify_mcp_permission($tool, $args, $dynamic_tier);
+        if (!$scope_check['allowed']) {
+            $duration_ms = round((microtime(true) - $start_time) * 1000, 2);
+            self::log_audit_event([
+                'id'          => uniqid('mcp_', true),
+                'timestamp'   => time(),
+                'client_ip'   => $client_ip,
+                'user_agent'  => $user_agent,
+                'tool'        => $tool,
+                'args'        => self::summarize_args($args),
+                'duration_ms' => $duration_ms,
+                'status'      => 'denied_scope_ceiling',
+                'message'     => $scope_check['reason'],
+            ]);
+
+            return [
+                'isError' => true,
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => $scope_check['reason'],
+                    ],
+                ],
+            ];
+        }
+
         if ($policy === 'blocked') {
             $duration_ms = round((microtime(true) - $start_time) * 1000, 2);
             self::log_audit_event([
@@ -982,6 +1121,9 @@ class MCPAgentService {
         }
 
         $needs_gate = ($policy === 'confirmation_required');
+        if (!empty($scope_check['force_stage'])) {
+            $needs_gate = true;
+        }
         if ($dynamic_tier >= 3 && !empty($catalog_map[$tool]['isMutating'])) {
             // Tier 3/4 sensitive payloads auto-escalate to confirmation gate unless tool policy explicitly opted in AND tier < 4
             if ($dynamic_tier >= 3 || !empty($preflight['force_stage'])) {
@@ -1137,6 +1279,28 @@ class MCPAgentService {
 
         $duration_ms = round((microtime(true) - $start_time) * 1000, 2);
         $is_error = !empty($response['isError']);
+
+        // Boundary 1: Untrusted-Data Taint Tracking
+        // When an MCP read tool returns external logs, scanner findings, or security telemetry,
+        // mark the session as tainted for 120 seconds to guard subsequent mutating calls.
+        if (!$is_error) {
+            $taint_producing_tools = [
+                'webcareproscan_list_findings',
+                'webcareproscan_list_waf_incidents',
+                'webcareproscan_list_quarantine_items',
+                'webcareproscan_get_identity_forensics',
+                'webcareproscan_get_behavioral_waf_status',
+                'webcareproscan_get_threat_intel_network',
+                'webcareproscan_explain_finding',
+                'webcareproscan_get_recent_logs',
+                'webcareproscan_get_scan_results',
+                'webcareproscan_get_quarantine_list',
+                'webcareproscan_get_blocked_ips',
+            ];
+            if (in_array($tool, $taint_producing_tools, true)) {
+                self::mark_session_tainted(120);
+            }
+        }
 
         self::log_audit_event([
             'id'          => uniqid('mcp_', true),
@@ -1321,6 +1485,17 @@ class MCPAgentService {
             $list[$target_index]['confirmation_token'] = null;
             update_option(self::STAGED_OPTION_KEY, $list, false);
             return ['success' => false, 'message' => __('Staged action has expired (> 24 hours old) and cannot be executed.', 'webcare-pro-security')];
+        }
+
+        // Boundary 4: Reject any call carrying an Authorization Bearer token; require interactive admin session
+        $auth_header = isset($_SERVER['HTTP_AUTHORIZATION'])
+            ? (string) wp_unslash($_SERVER['HTTP_AUTHORIZATION'])
+            : (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? (string) wp_unslash($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) : '');
+        if (stripos($auth_header, 'Bearer ') === 0) {
+            return [
+                'success' => false,
+                'message' => __('Execution Rejected: Staged actions cannot be approved via MCP Bearer token. Human confirmation in WP Admin is strictly required.', 'webcare-pro-security'),
+            ];
         }
 
         // Must strictly be called by an interactive authenticated administrator with manage_options
@@ -1641,10 +1816,26 @@ class MCPAgentService {
         $issue_id  = isset($args['issue_id']) ? (int) $args['issue_id'] : null;
 
         // Automatically begin a transactional snapshot before quarantining
-        $tx_id = TransactionalRemediation::start_transaction('Agent Quarantine: ' . basename($file_path), 'Autonomous AI quarantine remediation');
-        TransactionalRemediation::record_file_snapshot($tx_id, $file_path, 'quarantine', $issue_id);
+        $tx_id   = TransactionalRemediation::start_transaction('Agent Quarantine: ' . basename($file_path), 'Autonomous AI quarantine remediation');
+        $snap_ok = TransactionalRemediation::record_file_snapshot($tx_id, $file_path, 'quarantine', $issue_id);
 
-        $qm = new QuarantineManager();
+        if (!$snap_ok) {
+            return [
+                'isError' => true,
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => wp_json_encode([
+                            'success' => false,
+                            'message' => 'Action Aborted: Could not record pre-remediation safety snapshot. File was not quarantined.',
+                        ], JSON_PRETTY_PRINT),
+                    ],
+                ],
+                'result'  => ['success' => false, 'message' => 'Safety snapshot failed.'],
+            ];
+        }
+
+        $qm  = new QuarantineManager();
         $res = $qm->quarantine_file($file_path, null, $issue_id);
 
         if (!empty($res['success'])) {
@@ -2152,6 +2343,29 @@ class MCPAgentService {
             $out['escalate_tier'] = 4;
             $out['force_stage']   = true;
             $out['summary']       = 'Permanently delete quarantined file #' . intval($args['quarantine_id'] ?? 0);
+        }
+
+        // Boundary 3: Taint-Aware Dynamic Escalation
+        if (self::is_session_tainted()) {
+            $action      = sanitize_key((string) ($args['action'] ?? ''));
+            $action_type = sanitize_key((string) ($args['action_type'] ?? ''));
+            $is_permissive = in_array($tool, [
+                'webcareproscan_restore_quarantined_file',
+                'webcareproscan_delete_quarantined_file',
+                'webcareproscan_undo_last_mcp_change',
+                'webcareproscan_whitelist_finding',
+                'webcareproscan_rollback_remediation',
+                'webcareproscan_update_plugin_settings',
+            ], true)
+                || ($tool === 'webcareproscan_manage_ip_access' && in_array($action, ['unban', 'whitelist'], true))
+                || ($tool === 'webcareproscan_sync_cloudflare_ip_ban' && in_array($action, ['unban', 'whitelist'], true))
+                || ($tool === 'webcareproscan_save_custom_visual_rule' && $action_type === 'allow');
+
+            if ($is_permissive) {
+                $out['force_stage']   = true;
+                $out['escalate_tier'] = max((int) ($out['escalate_tier'] ?? 0), 3);
+                $out['warnings'][]    = __('Tainted Session Guard: Active session observed untrusted external telemetry. Sensitive operation was escalated to Staged Action confirmation queue.', 'webcare-pro-security');
+            }
         }
 
         return $out;
