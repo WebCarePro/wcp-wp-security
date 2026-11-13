@@ -178,8 +178,8 @@ class MCPAgentService {
      */
     public static function get_current_session_token_hash(): string {
         $auth_header = isset($_SERVER['HTTP_AUTHORIZATION'])
-            ? (string) wp_unslash($_SERVER['HTTP_AUTHORIZATION'])
-            : (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? (string) wp_unslash($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) : '');
+            ? sanitize_text_field(wp_unslash($_SERVER['HTTP_AUTHORIZATION']))
+            : (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? sanitize_text_field(wp_unslash($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) : '');
         if (!empty($auth_header) && preg_match('/Bearer\s+(\S+)/i', $auth_header, $m)) {
             return hash('sha256', $m[1]);
         }
@@ -1489,8 +1489,8 @@ class MCPAgentService {
 
         // Boundary 4: Reject any call carrying an Authorization Bearer token; require interactive admin session
         $auth_header = isset($_SERVER['HTTP_AUTHORIZATION'])
-            ? (string) wp_unslash($_SERVER['HTTP_AUTHORIZATION'])
-            : (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? (string) wp_unslash($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) : '');
+            ? sanitize_text_field(wp_unslash($_SERVER['HTTP_AUTHORIZATION']))
+            : (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? sanitize_text_field(wp_unslash($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) : '');
         if (stripos($auth_header, 'Bearer ') === 0) {
             return [
                 'success' => false,

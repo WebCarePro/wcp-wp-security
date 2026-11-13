@@ -104,7 +104,7 @@ class RequestContext {
         $ctx->userAgent    = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
         $ctx->referer      = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
         $ctx->cookieHeader = isset($_SERVER['HTTP_COOKIE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_COOKIE'])) : '';
-        $remote_peer     = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $remote_peer     = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
         $trusted_proxy   = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
             && \WebCareProScanner\Firewall\FirewallEngine::is_trusted_proxy($remote_peer);
         $ctx->country    = $trusted_proxy && isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY']))) : '';

@@ -1250,7 +1250,7 @@ class VisualRuleExpressionEngine {
         $cf_configured = $cf_enabled
             && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')
             && CloudflareService::is_configured();
-        $remote_peer   = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $remote_peer   = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
         $trusted_proxy = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
             && \WebCareProScanner\Firewall\FirewallEngine::is_trusted_proxy($remote_peer);
         $cf_proxied    = $trusted_proxy && (!empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']));
@@ -1486,7 +1486,7 @@ class VisualRuleExpressionEngine {
         $has_geo          = false;
         $has_admin_guard  = false;
         $touches_wp_admin = false;
-        $remote_peer      = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $remote_peer      = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
         $trusted_proxy    = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
             && \WebCareProScanner\Firewall\FirewallEngine::is_trusted_proxy($remote_peer);
         $cf_proxied       = $trusted_proxy && (!empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']));

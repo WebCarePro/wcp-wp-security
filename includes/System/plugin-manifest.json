@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-13T23:28:42.462Z",
+  "generated_at": "2026-11-13T23:46:47.502Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -176,8 +176,8 @@
       "size": 9420
     },
     "includes/Api/MCPAgentService.php": {
-      "sha256": "120d6710fb446eb73f4801c79626e55638bc76d4aa15872d3f316c448bed3e92",
-      "size": 108692
+      "sha256": "4198f73f714e42cc47ec141a6b3bd45ee36100dbb6f4024ba0fd7334038f6dc1",
+      "size": 108740
     },
     "includes/Api/MCPAntiLockoutValidator.php": {
       "sha256": "9953443b5bf43931dfe5f02b2acd2984192f8d243283289ebdd6925722015cfd",
@@ -268,8 +268,8 @@
       "size": 3658
     },
     "includes/Contracts/RequestContext.php": {
-      "sha256": "da00c6b87417c336ab31cf6852ece8ad4aacc34bb935786f2333f40fb0c6c742",
-      "size": 9262
+      "sha256": "7878ec824070ba077b2b5d314b395a5630c959f96393c0f26df2d04a251aabc9",
+      "size": 9316
     },
     "includes/Contracts/SecurityModuleInterface.php": {
       "sha256": "86e9dc6bef5e87d0dac20cf170fdede325bb721c51258867360c1197f8741214",
@@ -492,8 +492,8 @@
       "size": 93998
     },
     "includes/Firewall/Modular/VisualRuleExpressionEngine.php": {
-      "sha256": "c809596cf8a8f3aa3a977c8e053bf4e8c041e3615ae641490821467179d89b6a",
-      "size": 68411
+      "sha256": "e76be7ad93c841186a1edd7fa2e252800fd05d569290c3eb8b43f0e160910ac0",
+      "size": 68519
     },
     "includes/Firewall/NextGen/CheckoutSkimmerSentinel.php": {
       "sha256": "5522ef14819ae9c48b764bfaf834e0808c47086914e80c584e8af9237f128d2c",
@@ -700,8 +700,8 @@
       "size": 58998
     },
     "includes/Remediation/TransactionalRemediation.php": {
-      "sha256": "7904252424a2783a9dff6fa92ce3dc91b19a12cd6016c579319d46808ae7aa1a",
-      "size": 25448
+      "sha256": "0fa547fabeb682ba219bb00e58d6871c42411ee6a6973e09f4421d11ca5e3c4b",
+      "size": 25617
     },
     "includes/Reports/IncidentReportEngine.php": {
       "sha256": "2d94eedefaa631e6a5abc3224a79f52ca9b651d5d092e1f9cd364374ceaddd34",

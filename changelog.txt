@@ -38,6 +38,9 @@
   * Updated MCP Gateway cards, tool descriptors, and route documentation to reflect "Custom Firewall Rules".
   * Aligned site-aware AI prompt templates across both client (aiRulePromptBuilder.ts) and backend generator (VisualRuleExpressionEngine::build_ai_markdown_prompt()).
   * Harmonized runtime log verdicts and Micro-WAF compiler notices to report "Allowed/Blocked by Custom Firewall Rule" across incident feeds.
+- WordPress.org Plugin Check (PCP) Compliance & Input Sanitization:
+  * Resolved all input sanitization warnings across MCPAgentService, RequestContext, and VisualRuleExpressionEngine by unslashing and sanitizing HTTP_AUTHORIZATION, REDIRECT_HTTP_AUTHORIZATION, and REMOTE_ADDR.
+  * Added justification documentation for pre-remediation transactional vault backups in TransactionalRemediation.
 
 v:2.13.0 - 2026-11-13
 - Context-Aware Instant Scan & Targeted Audit Mitigation Actions Overhaul:

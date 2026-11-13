@@ -131,6 +131,7 @@ class TransactionalRemediation {
         $backup_path = $tx_dir . '/files/' . $backup_key;
 
         // Perform byte-for-byte copy
+        // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected -- Pre-remediation safety backup of live file written into wp_upload_dir() transaction vault.
         if (!@copy($full_path, $backup_path)) {
             return false;
         }
