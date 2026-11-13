@@ -1812,12 +1812,73 @@ class MCPAgentService {
     }
 
     private static function tool_quarantine_file(array $args): array {
+        global $wpdb;
+
         $file_path = sanitize_text_field($args['file_path'] ?? '');
         $issue_id  = isset($args['issue_id']) ? (int) $args['issue_id'] : null;
 
+        $real_path = realpath($file_path);
+        if (!$real_path) {
+            $candidate = wp_normalize_path(ABSPATH . ltrim($file_path, '/\\'));
+            if (file_exists($candidate)) {
+                $real_path = realpath($candidate);
+            }
+        }
+        if (!$real_path || !is_file($real_path) || is_link($real_path)) {
+            return [
+                'isError' => true,
+                'content' => [['type' => 'text', 'text' => 'Action Blocked: Target file does not exist or is a symlink.']],
+                'result'  => ['success' => false, 'message' => 'Target file does not exist or is a symlink.'],
+            ];
+        }
+
+        $normalized_real = wp_normalize_path($real_path);
+
+        // Enforce strict MCP containment: require a verified malware/rogue scan issue ID when targeting any active plugin or active theme directory
+        $protected_component_dirs = [];
+        if (function_exists('get_stylesheet_directory')) {
+            $protected_component_dirs[] = trailingslashit(wp_normalize_path(get_stylesheet_directory()));
+        }
+        if (function_exists('get_template_directory')) {
+            $protected_component_dirs[] = trailingslashit(wp_normalize_path(get_template_directory()));
+        }
+        if (function_exists('wp_get_active_and_valid_plugins')) {
+            foreach (wp_get_active_and_valid_plugins() as $active_plugin_file) {
+                $protected_component_dirs[] = trailingslashit(wp_normalize_path(dirname($active_plugin_file)));
+            }
+        }
+
+        $in_active_component = false;
+        foreach (array_unique($protected_component_dirs) as $comp_dir) {
+            if ($comp_dir !== '/' && strpos($normalized_real, $comp_dir) === 0) {
+                $in_active_component = true;
+                break;
+            }
+        }
+
+        if ($in_active_component) {
+            $allowed_issue = false;
+            if ($issue_id && $issue_id > 0) {
+                $table_issues = $wpdb->prefix . 'webcareproscan_scan_issues';
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                $issue_row = $wpdb->get_row($wpdb->prepare("SELECT type, file_path FROM `{$table_issues}` WHERE id = %d", (int) $issue_id));
+                if ($issue_row && strpos((string) $issue_row->type, 'modified_') !== 0 && strpos((string) $issue_row->type, 'wp_config_') !== 0 && $issue_row->type !== 'injected_wp_config') {
+                    $allowed_issue = true;
+                }
+            }
+            if (!$allowed_issue) {
+                $msg = 'Action Blocked: MCP cannot quarantine files inside an active plugin or active theme without a verified non-core malware/rogue scan issue_id.';
+                return [
+                    'isError' => true,
+                    'content' => [['type' => 'text', 'text' => $msg]],
+                    'result'  => ['success' => false, 'message' => $msg],
+                ];
+            }
+        }
+
         // Automatically begin a transactional snapshot before quarantining
-        $tx_id   = TransactionalRemediation::start_transaction('Agent Quarantine: ' . basename($file_path), 'Autonomous AI quarantine remediation');
-        $snap_ok = TransactionalRemediation::record_file_snapshot($tx_id, $file_path, 'quarantine', $issue_id);
+        $tx_id   = TransactionalRemediation::start_transaction('Agent Quarantine: ' . basename($real_path), 'Autonomous AI quarantine remediation');
+        $snap_ok = TransactionalRemediation::record_file_snapshot($tx_id, $real_path, 'quarantine', $issue_id);
 
         if (!$snap_ok) {
             return [
@@ -1836,11 +1897,26 @@ class MCPAgentService {
         }
 
         $qm  = new QuarantineManager();
-        $res = $qm->quarantine_file($file_path, null, $issue_id);
+        $res = $qm->quarantine_file($real_path, null, $issue_id);
 
         if (!empty($res['success'])) {
             TransactionalRemediation::commit_transaction($tx_id);
             $res['tx_id'] = $tx_id;
+        } else {
+            // Clean up uncommitted transaction directory if quarantine was rejected
+            $tx_dir = TransactionalRemediation::get_transactions_dir() . '/' . TransactionalRemediation::sanitize_tx_id($tx_id);
+            if (is_dir($tx_dir)) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+                @unlink($tx_dir . '/manifest.json');
+                foreach (@glob($tx_dir . '/files/*') ?: [] as $bf) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+                    @unlink($bf);
+                }
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($tx_dir . '/files');
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
+                @rmdir($tx_dir);
+            }
         }
 
         return [

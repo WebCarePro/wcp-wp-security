@@ -122,7 +122,12 @@ class VaultRotator {
             return new \WP_Error('keys_missing', $state['last_error']);
         }
 
-        $new_binary_key = strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true);
+        $old_binary_key = strlen($old_key) === 32
+            ? $old_key
+            : (strlen($old_key) === 64 && ctype_xdigit($old_key) ? (string) hex2bin($old_key) : hash('sha256', $old_key, true));
+        $new_binary_key = strlen($new_key) === 32
+            ? $new_key
+            : (strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true));
 
         // Fetch encrypted settings keys from webcareproscan_settings
         $settings = get_option(\WebCareProScanner\System\SettingsManager::OPTION_KEY, []);
@@ -173,8 +178,18 @@ class VaultRotator {
             return new \WP_Error('migration_failed', 'Key rotation failed for: ' . implode(', ', $state['failed_records']) . '. ' . ($state['last_error'] ?? ''));
         }
 
-        // If all records migrated and no failures, move to verifying
+        // If all settings records migrated and no failures, rotate <20MB encrypted vault archives on disk before verifying
         if ($state['records_done'] >= $state['records_total']) {
+            $disk_rotation = self::rotate_encrypted_disk_archives($old_binary_key, $new_binary_key);
+            $state['archives_rotated'] = (int) ($disk_rotation['rotated'] ?? 0);
+            if (!empty($disk_rotation['failed'])) {
+                $state['failed_records'] = array_merge($state['failed_records'] ?? [], $disk_rotation['failed']);
+                $state['status']         = 'failed';
+                $state['last_error']     = 'Disk archive key rotation failed for one or more vault files.';
+                update_option(self::STATE_OPTION, $state, false);
+                self::release_lock();
+                return new \WP_Error('archive_migration_failed', $state['last_error']);
+            }
             $state['status'] = 'verifying';
         }
 
@@ -209,7 +224,12 @@ class VaultRotator {
             return new \WP_Error('keys_missing', $state['last_error']);
         }
 
-        $new_binary_key = strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true);
+        $old_binary_key = strlen($old_key) === 32
+            ? $old_key
+            : (strlen($old_key) === 64 && ctype_xdigit($old_key) ? (string) hex2bin($old_key) : hash('sha256', $old_key, true));
+        $new_binary_key = strlen($new_key) === 32
+            ? $new_key
+            : (strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true));
 
         $settings = get_option(\WebCareProScanner\System\SettingsManager::OPTION_KEY, []);
         $secret_fields = self::get_rotatable_secret_fields($settings);

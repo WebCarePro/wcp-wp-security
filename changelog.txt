@@ -41,6 +41,14 @@
 - WordPress.org Plugin Check (PCP) Compliance & Input Sanitization:
   * Resolved all input sanitization warnings across MCPAgentService, RequestContext, and VisualRuleExpressionEngine by unslashing and sanitizing HTTP_AUTHORIZATION, REDIRECT_HTTP_AUTHORIZATION, and REMOTE_ADDR.
   * Added justification documentation for pre-remediation transactional vault backups in TransactionalRemediation.
+- WebAuthn Full Origin Validation & Registration Security Parity:
+  * Eliminated cross-origin production bypass in WebAuthn login assertion by requiring both site host and client origin host to be local before permitting localhost exceptions.
+  * Brought WebAuthn registration into full security parity with login assertions by enforcing userVerification: 'required', strict normalize_origin() matching, and verifying User Presence (0x01) and User Verification (0x04) in attestation authenticatorData.
+- Secret Vault Disk Archive Rotation Pipeline:
+  * Wired rotate_encrypted_disk_archives() into continue_rotation(), ensuring <20 MB quarantined files and remediation backups on disk are re-encrypted under the new binary key before verifying and committing rotations.
+- MCP Active Plugin & Theme Quarantine Containment:
+  * Guarded active plugin and active theme directories in MCPAgentService::tool_quarantine_file() by requiring a verified malware/rogue scan issue ID, blocking arbitrary quarantine of running extensions.
+  * Added automated cleanup of uncommitted transactional snapshot directories on quarantine rejection.
 
 v:2.13.0 - 2026-11-13
 - Context-Aware Instant Scan & Targeted Audit Mitigation Actions Overhaul:

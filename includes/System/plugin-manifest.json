@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-13T23:46:47.502Z",
+  "generated_at": "2026-11-13T23:56:07.107Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -176,8 +176,8 @@
       "size": 9420
     },
     "includes/Api/MCPAgentService.php": {
-      "sha256": "4198f73f714e42cc47ec141a6b3bd45ee36100dbb6f4024ba0fd7334038f6dc1",
-      "size": 108740
+      "sha256": "10f77bd015e2a0969ed5580c13438f234de3951c212863d90038a16c09556018",
+      "size": 112753
     },
     "includes/Api/MCPAntiLockoutValidator.php": {
       "sha256": "9953443b5bf43931dfe5f02b2acd2984192f8d243283289ebdd6925722015cfd",
@@ -224,8 +224,8 @@
       "size": 53748
     },
     "includes/Auth/WebAuthnManager.php": {
-      "sha256": "947e2f39bd5747e7156d0b2506fc71abba60876de2bd43a520d11a8192edddbd",
-      "size": 46954
+      "sha256": "cdaf1a0af5ec88674b15178cf661f91b1c1d755e06f2e3ce787952ee9d2a0778",
+      "size": 48072
     },
     "includes/Backup/DatabaseBackup.php": {
       "sha256": "bf4f5ca5e077b6ac97036dc87757ca679c164745a3237e8ebdc1c9e3ebfe150c",
@@ -768,8 +768,8 @@
       "size": 13546
     },
     "includes/Security/VaultRotator.php": {
-      "sha256": "1afca92fb06aa8364604217e0a46a77cba7163909bf6a12bc954952964a10a8b",
-      "size": 22351
+      "sha256": "1deb7511a8565167eaad853c3e1924966a30964b12224b0adde87c802b9b76f7",
+      "size": 23650
     },
     "includes/SupplyChain/InstallRiskAdvisor.php": {
       "sha256": "efd655f0d6222111f6e9ef7e16f6018f4d198289d78b14680d2d48e38ab64793",
@@ -932,8 +932,8 @@
       "size": 26630
     },
     "readme.txt": {
-      "sha256": "686c6f0371f880d8d368c817063670f3a48c9229f8f4e9d024cb533e92b142bf",
-      "size": 41384
+      "sha256": "0f99cd9f458a4afe2b5f024044c2a0dfc7f5953e62832427bc2892798e448619",
+      "size": 41470
     },
     "uninstall.php": {
       "sha256": "3657ad82326080246215b9abae93ae62f86c18ad423e0d1e3f4402eb0908d878",

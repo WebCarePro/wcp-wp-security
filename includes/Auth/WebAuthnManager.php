@@ -200,7 +200,7 @@ class WebAuthnManager {
                 ],
                 'authenticatorSelection' => [
                     'authenticatorAttachment' => 'platform', // Platform biometrics (FaceID/TouchID/Windows Hello)
-                    'userVerification'        => 'preferred',
+                    'userVerification'        => 'required',
                     'residentKey'             => 'preferred',
                 ],
                 'timeout' => 60000,
@@ -259,18 +259,26 @@ class WebAuthnManager {
             ];
         }
 
-        // Strictly verify origin to prevent cross-origin registration relay attacks
-        $expected_origin_host = wp_parse_url(home_url(), PHP_URL_HOST);
-        $client_origin = (string) ($client_data['origin'] ?? '');
-        $client_origin_host = wp_parse_url($client_origin, PHP_URL_HOST);
-        if (empty($client_origin_host) || empty($expected_origin_host)) {
+        // Strictly verify origin (scheme://host[:port]) to prevent cross-origin registration relay attacks
+        $client_origin      = trim((string) ($client_data['origin'] ?? ''));
+        $norm_client_origin = self::normalize_origin($client_origin);
+        $norm_home_origin   = self::normalize_origin(home_url());
+        $norm_site_origin   = self::normalize_origin(site_url());
+
+        if ($norm_client_origin === '') {
             return [
                 'success' => false,
                 'message' => __('Registration origin verification failed: missing or invalid origin.', 'webcare-pro-security'),
             ];
         }
-        $is_dev_env = defined('WP_DEBUG') && WP_DEBUG && in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
-        if (strtolower($client_origin_host) !== strtolower($expected_origin_host) && !$is_dev_env) {
+
+        $expected_host      = (string) wp_parse_url(home_url(), PHP_URL_HOST);
+        $client_origin_host = (string) wp_parse_url($client_origin, PHP_URL_HOST);
+        $is_local_site      = in_array(strtolower($expected_host), ['localhost', '127.0.0.1'], true)
+            && in_array(strtolower($client_origin_host), ['localhost', '127.0.0.1'], true);
+        $origin_matches     = ($norm_client_origin === $norm_home_origin || $norm_client_origin === $norm_site_origin || $is_local_site);
+
+        if (!$origin_matches) {
             return [
                 'success' => false,
                 'message' => __('WebAuthn registration origin mismatch.', 'webcare-pro-security'),
@@ -280,14 +288,14 @@ class WebAuthnManager {
         // Parse Attestation Object to extract public key PEM
         $attestation_bin = self::base64url_decode($attestation_obj_b64);
 
-        // Verify rpIdHash in authenticatorData inside attestation object
-        $expected_rp_id = self::get_rp_id();
+        // Verify rpIdHash and UP/UV flags in authenticatorData inside attestation object
+        $expected_rp_id   = self::get_rp_id();
         $expected_rp_hash = hash('sha256', $expected_rp_id, true);
-        $auth_data_pos = strpos($attestation_bin, 'authData');
+        $auth_data_pos    = strpos($attestation_bin, 'authData');
         if ($auth_data_pos !== false) {
             $after_tag = $auth_data_pos + 8;
             if ($after_tag < strlen($attestation_bin)) {
-                $lead = ord($attestation_bin[$after_tag]);
+                $lead        = ord($attestation_bin[$after_tag]);
                 $auth_offset = $after_tag + 1;
                 if ($lead === 0x58) {
                     $auth_offset = $after_tag + 2;
@@ -295,12 +303,21 @@ class WebAuthnManager {
                     $auth_offset = $after_tag + 3;
                 }
                 $auth_data = substr($attestation_bin, $auth_offset);
-                if (strlen($auth_data) >= 32) {
+                if (strlen($auth_data) >= 37) {
                     $incoming_rp_hash = substr($auth_data, 0, 32);
                     if (!hash_equals($expected_rp_hash, $incoming_rp_hash)) {
                         return [
                             'success' => false,
                             'message' => __('WebAuthn registration RP ID verification failed.', 'webcare-pro-security'),
+                        ];
+                    }
+                    $reg_flags         = ord($auth_data[32]);
+                    $reg_user_present  = ($reg_flags & 0x01) !== 0;
+                    $reg_user_verified = ($reg_flags & 0x04) !== 0;
+                    if (!$reg_user_present || !$reg_user_verified) {
+                        return [
+                            'success' => false,
+                            'message' => __('Registration failed: Biometric or PIN user verification (UV flag) was not asserted by the authenticator.', 'webcare-pro-security'),
                         ];
                     }
                 }
@@ -477,11 +494,13 @@ class WebAuthnManager {
             ];
         }
 
+        $expected_host      = (string) wp_parse_url(home_url(), PHP_URL_HOST);
         $client_origin_host = (string) wp_parse_url($client_origin, PHP_URL_HOST);
-        $is_dev_env = (defined('WP_DEBUG') && WP_DEBUG) || in_array($client_origin_host, ['localhost', '127.0.0.1'], true);
-        $origin_matches = ($norm_client_origin === $norm_home_origin || $norm_client_origin === $norm_site_origin);
+        $is_local_site      = in_array(strtolower($expected_host), ['localhost', '127.0.0.1'], true)
+            && in_array(strtolower($client_origin_host), ['localhost', '127.0.0.1'], true);
+        $origin_matches     = ($norm_client_origin === $norm_home_origin || $norm_client_origin === $norm_site_origin || $is_local_site);
 
-        if (!$origin_matches && !$is_dev_env) {
+        if (!$origin_matches) {
             return [
                 'success' => false,
                 'message' => __('WebAuthn assertion origin mismatch.', 'webcare-pro-security'),
