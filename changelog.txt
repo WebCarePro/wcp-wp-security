@@ -10,7 +10,7 @@
   * Added 14-day WebCare Quarantine Vault automatic backup safety dialog before permanently deleting any rogue or untracked file via handleDeleteRogueFile().
   * Added fallback is_official_compared guard to VisualDiffModal.tsx for core and theme comparisons to prevent offering restoration when no upstream baseline exists.
   * Fixed reference scoping in SecurityScannerPage by destructuring canQuarantineIssue and adding an autonomous isQuarantinable() fallback guard, eliminating "canQuarantineIssue is not defined" render exceptions.
-  * Redesigned AI Rule Assistant in Visual Rule Studio with an intuitive 3-step workflow for non-technical users: collapsed by default with a prominent "Generate Firewall Rules by AI" hero launch button, 1-click plain-English examples, and 1-click prompt copy & paste import.
+  * Redesigned AI Rule Assistant with an intuitive 3-step workflow for non-technical users, collapsed by default with a prominent "Generate Firewall Rules by AI" hero launch button, 1-click plain-English examples, and renamed "Visual Rule Studio" to the clearer, user-friendly "Custom Firewall Rules".
 - Refined MCP Tier 3+ Auto-Staging, Snapshot Preload Recompile & Deep Upload/JSON Payload Guards:
   * Enforced mandatory staged confirmation on dynamic Tier 3+ escalations (such as custom visual allow rules) in MCPAgentService.
   * Added automatic MicroWafCompiler pre-boot recompilation to MCPSnapshotManager::restore_snapshot().

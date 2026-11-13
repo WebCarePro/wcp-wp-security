@@ -983,7 +983,7 @@ class FirewallEngine {
                     if (!\WebCareProScanner\Firewall\BotReconDefense::has_valid_clearance_cookie($client_ip, $ua_raw)) {
                         $rule_triggered = [
                             'id'          => $modular_violation['rule_id'],
-                            'name'        => 'Visual Rule Studio PoW Challenge',
+                            'name'        => 'Custom Firewall Rule PoW Challenge',
                             'category'    => 'Modular Behavioral WAF',
                             'description' => $modular_violation['reason'],
                             'match_type'  => $modular_violation['category'],
