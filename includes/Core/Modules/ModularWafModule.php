@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Reference module adapter registering Modular Intelligence WAF & Visual Rule Studio.
+ * Reference module adapter registering Modular Intelligence WAF & Custom Firewall Rules.
  */
 class ModularWafModule implements SecurityModuleInterface, WafEvaluatorInterface {
 
@@ -25,8 +25,8 @@ class ModularWafModule implements SecurityModuleInterface, WafEvaluatorInterface
 
     public function get_manifest(): array {
         return [
-            'title'       => __('Modular Behavioral WAF & Visual Rule Studio', 'webcare-pro-security'),
-            'description' => __('Autonomous AST-synthesized firewall rules paired with the Cloudflare-style Visual Condition & Wirefilter Studio.', 'webcare-pro-security'),
+            'title'       => __('Modular Behavioral WAF & Custom Firewall Rules', 'webcare-pro-security'),
+            'description' => __('Autonomous AST-synthesized firewall rules paired with custom condition & Wirefilter rules.', 'webcare-pro-security'),
             'category'    => 'waf',
             'version'     => defined('WEBCAREPROSCAN_VERSION') ? WEBCAREPROSCAN_VERSION : '2.12.0',
             'author'      => 'Mir Alamin (WebCare Pro)',
@@ -59,7 +59,7 @@ class ModularWafModule implements SecurityModuleInterface, WafEvaluatorInterface
         return [
             [
                 'name'        => 'webcareproscan_get_visual_waf_context',
-                'description' => 'Retrieve the Visual Rule Studio schema (18 fields & operators), installed plugins/themes (slug, version, status, URL path), WordPress roles, discovered endpoints, existing #ID custom rules, Cloudflare status, and a Markdown AI prompt.',
+                'description' => 'Retrieve the Custom Firewall Rules schema (18 fields & operators), installed plugins/themes (slug, version, status, URL path), WordPress roles, discovered endpoints, existing #ID custom rules, Cloudflare status, and a Markdown AI prompt.',
                 'category'    => 'read',
                 'isMutating'  => false,
                 'inputSchema' => [

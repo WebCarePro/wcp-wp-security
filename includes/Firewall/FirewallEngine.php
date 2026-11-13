@@ -968,8 +968,8 @@ class FirewallEngine {
             }
         }
 
-        // Modular Intelligence Firewall & Visual Rule Studio Runtime Enforcement
-        // Evaluated ahead of rate-limiter/PoW gates so explicit Custom & Visual rules return exact configured verdicts immediately.
+        // Modular Intelligence Firewall & Custom Firewall Rules Runtime Enforcement
+        // Evaluated ahead of rate-limiter/PoW gates so explicit Custom rules return exact configured verdicts immediately.
         if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
             $modular_violation = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::evaluate_runtime_modular_rules();
             if ($modular_violation !== null) {

@@ -1,4 +1,12 @@
-﻿v:2.13.0 - 2026-11-13
+﻿v:2.14.0 - 2026-11-14
+- Custom Firewall Rules Complete Rebranding & User Experience Alignment:
+  * Renamed "Visual Rule Studio" throughout the entire codebase, navigation tabs, and system modules to "Custom Firewall Rules" for maximum clarity for non-technical users.
+  * Updated builder headers to clearly distinguish "Create Custom Firewall Rule" and "Edit Custom Firewall Rule · ID #X".
+  * Updated MCP Gateway cards, tool descriptors, and route documentation to reflect "Custom Firewall Rules".
+  * Aligned site-aware AI prompt templates across both client (aiRulePromptBuilder.ts) and backend generator (VisualRuleExpressionEngine::build_ai_markdown_prompt()).
+  * Harmonized runtime log verdicts and Micro-WAF compiler notices to report "Allowed/Blocked by Custom Firewall Rule" across incident feeds.
+
+v:2.13.0 - 2026-11-13
 - Context-Aware Instant Scan & Targeted Audit Mitigation Actions Overhaul:
   * Eliminated irrelevant action buttons on unrecognized and unknown files (e.g. "Repair Core", "Repair Plugin", "Repair Theme", "Code Diff (FIM)", and "Strip Webshell" erroneously displayed on unknown_core_file findings like test.txt in WordPress root).
   * Formulated strict semantic classification predicates across all scanner interfaces:

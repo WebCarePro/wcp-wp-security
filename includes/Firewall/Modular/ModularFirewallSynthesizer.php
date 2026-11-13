@@ -883,7 +883,7 @@ class ModularFirewallSynthesizer {
 
             $cat = $r['category'] ?? '';
 
-            // 0. Custom Developer-Defined & Visual Rules (MOD-CUSTOM-*)
+            // 0. Custom Developer-Defined & Custom Firewall Rules (MOD-CUSTOM-*)
             if (!empty($r['is_custom']) || $cat === 'custom') {
                 $action_type = (string) ($r['action_type'] ?? '');
                 $rate_lim    = max(0, intval($r['rate_limit'] ?? 0));
@@ -1278,14 +1278,14 @@ class ModularFirewallSynthesizer {
                                     'category'     => $r['category'] ?? 'custom',
                                     'action_type'  => 'allow',
                                     'blocked'      => false,
-                                    'reason'       => sprintf('Allowed by Custom Visual Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
+                                    'reason'       => sprintf('Allowed by Custom Firewall Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
                                     'severity'     => 'info',
                                     'exempt_rules' => [],
                                 ];
                             }
                             return self::build_violation(
                                 $r,
-                                sprintf('Dry-run Allow match for Custom Visual Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
+                                sprintf('Dry-run Allow match for Custom Firewall Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
                                 false,
                                 'info'
                             );
@@ -1298,7 +1298,7 @@ class ModularFirewallSynthesizer {
                     if ($act === 'monitor') {
                         return self::build_violation(
                             $r,
-                            sprintf('Monitored request matched Custom Visual Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
+                            sprintf('Monitored request matched Custom Firewall Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
                             false,
                             'medium'
                         );
@@ -1307,7 +1307,7 @@ class ModularFirewallSynthesizer {
                     if ($act === 'challenge_pow') {
                         return self::build_violation(
                             $r,
-                            sprintf('WebCrypto PoW challenge required by Custom Visual Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
+                            sprintf('WebCrypto PoW challenge required by Custom Firewall Rule "%1$s" [%2$s].', (string) ($r['title'] ?? $r['id']), $r['id']),
                             $should_block,
                             'medium'
                         );
@@ -1679,7 +1679,7 @@ class ModularFirewallSynthesizer {
             'action_type'      => $raw_action,
             'title'            => $title,
             'description'      => isset($data['description']) ? sanitize_textarea_field(wp_unslash($data['description'])) : '',
-            'origin_component' => !empty($conditions) ? 'Visual Rule Studio' : 'Custom User Rule',
+            'origin_component' => !empty($conditions) ? 'Custom Firewall Rules' : 'Custom User Rule',
             'file'             => '',
             'line'             => 0,
             'evidence'         => !empty($wirefilter_expr) ? $wirefilter_expr : __('Developer-defined custom modular protection rule.', 'webcare-pro-security'),

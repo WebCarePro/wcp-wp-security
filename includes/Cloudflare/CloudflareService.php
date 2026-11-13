@@ -20,7 +20,7 @@ class CloudflareService {
     const WEBCARE_LEGACY_RULE_TAG = '[WebCare Pro Security & Firewall]';
 
     /**
-     * Check if a Cloudflare Edge rule description belongs to Visual Rule Studio Edge Sync.
+     * Check if a Cloudflare Edge rule description belongs to Custom Firewall Rules Edge Sync.
      */
     private static function is_visual_studio_rule_desc(string $desc): bool {
         return str_starts_with($desc, '[WebCare-WAF]') || strpos($desc, '[WEBCARE-MOD-VISUAL:') !== false;
@@ -887,7 +887,7 @@ class CloudflareService {
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = (string) ($rule['description'] ?? '');
-                // Always preserve non-WebCare user rules and pushed Visual Rule Studio rules
+                // Always preserve non-WebCare user rules and pushed Custom Firewall Rules
                 if (!self::is_core_webcare_rule_desc($desc)) {
                     $preserved_rules[] = $rule;
                     continue;
@@ -986,7 +986,7 @@ class CloudflareService {
         if (!empty($existing_res['success']) && !empty($existing_res['result']['rules'])) {
             foreach ($existing_res['result']['rules'] as $rule) {
                 $desc = (string) ($rule['description'] ?? '');
-                // Keep non-WebCare user rules and Visual Rule Studio rules
+                // Keep non-WebCare user rules and Custom Firewall Rules
                 if (!self::is_core_webcare_rule_desc($desc)) {
                     $preserved_rules[] = $rule;
                 }

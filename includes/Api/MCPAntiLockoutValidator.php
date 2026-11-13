@@ -211,7 +211,7 @@ class MCPAntiLockoutValidator {
             ];
         }
 
-        // Block banning protected admin/server IPs via Visual Rule IP equals/in clauses
+        // Block banning protected admin/server IPs via Custom Firewall Rule IP equals/in clauses
         foreach (self::get_protected_ips() as $protected) {
             if ($protected !== '' && strpos($expr, strtolower($protected)) !== false) {
                 return [

@@ -2859,7 +2859,7 @@ export const FirewallPage = ({
                 }}
               >
                 <Radar size={15} color="#7c3aed" />
-                <span>Modular WAF Studio</span>
+                <span>Modular WAF &amp; Custom Rules</span>
               </button>
             </div>
           )}

@@ -1030,7 +1030,7 @@ class VisualRuleExpressionEngine {
         $settings    = SettingsManager::get_settings();
         $zone_id     = (string) ($settings['cloudflare_zone_id'] ?? '');
         $rule_id     = sanitize_text_field((string) ($rule_data['id'] ?? ('MOD-CUSTOM-' . strtoupper(wp_generate_password(6, false, false)))));
-        $title       = sanitize_text_field((string) ($rule_data['title'] ?? 'Custom Visual Rule'));
+        $title       = sanitize_text_field((string) ($rule_data['title'] ?? 'Custom Firewall Rule'));
         $group_logic = strtoupper(trim((string) ($rule_data['group_logic'] ?? 'OR'))) === 'AND' ? 'AND' : 'OR';
         $groups      = self::sanitize_condition_groups($rule_data['conditions'] ?? []);
         $cf_conv     = !empty($groups)
@@ -1113,7 +1113,7 @@ class VisualRuleExpressionEngine {
             'message'        => !empty($cf_conv['partial'])
                 /* translators: %s: comma-separated list of WordPress-only fields evaluated locally */
                 ? sprintf(__('Deployed HTTP/Network expression to Cloudflare Edge. WordPress-only fields (%s) continue enforcing locally.', 'webcare-pro-security'), implode(', ', $cf_conv['skipped_fields']))
-                : __('Custom Visual Rule deployed cleanly to Cloudflare Edge Firewall.', 'webcare-pro-security'),
+                : __('Custom Firewall Rule deployed cleanly to Cloudflare Edge Firewall.', 'webcare-pro-security'),
             'expression'     => $cf_conv['expression'],
             'cf_action'      => $cf_action,
             'partial'        => $cf_conv['partial'],
@@ -1122,7 +1122,7 @@ class VisualRuleExpressionEngine {
     }
 
     /**
-     * Collect normalized Visual Rule Studio context (fields, installed plugins/themes, roles, endpoints, custom rules, Cloudflare status).
+     * Collect normalized Custom Firewall Rules context (fields, installed plugins/themes, roles, endpoints, custom rules, Cloudflare status).
      * Shared across REST routes, MCP tools, and AI prompt generators.
      *
      * @return array<string, mixed>
@@ -1300,7 +1300,7 @@ class VisualRuleExpressionEngine {
     public static function build_ai_markdown_prompt(string $goal = ''): string {
         $ctx   = self::get_site_context_data();
         $lines = [
-            '# WebCare Pro Visual Firewall Rule Generator',
+            '# WebCare Pro Custom Firewall Rule Generator',
             '',
             'Generate a valid **WebCare Pro Wirefilter Expression** (or complete Rule JSON) compatible with this WordPress site\'s local origin firewall.',
             '',

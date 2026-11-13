@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Normalized immutable-style request snapshot shared across WAF evaluators and visual rule engines.
+ * Normalized immutable-style request snapshot shared across WAF evaluators and custom rule engines.
  */
 class RequestContext {
 

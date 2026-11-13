@@ -77,7 +77,7 @@ class CloudflareSlotOptimizer {
     }
 
     /**
-     * Check if a rule description belongs to Visual Rule Studio Edge Sync.
+     * Check if a rule description belongs to Custom Firewall Rules Edge Sync.
      *
      * @param string $description
      * @return bool
@@ -233,7 +233,7 @@ class CloudflareSlotOptimizer {
             ];
         }
 
-        // 1. Fetch existing rules to preserve both Visual Rule Studio rules and user-defined custom rules
+        // 1. Fetch existing rules to preserve both Custom Firewall Rules and user-defined custom rules
         $existing_rules = $this->get_zone_rules($zone_id);
         $visual_rules   = [];
         $user_rules     = [];

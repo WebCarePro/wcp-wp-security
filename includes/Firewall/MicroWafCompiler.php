@@ -632,7 +632,7 @@ class MicroWafCompiler {
         $out .= "                        foreach (\$v_ex as \$vei) { \$vis_exempt_ids[] = (string) \$vei; }\n";
         $out .= "                        continue;\n";
         $out .= "                    }\n";
-        $out .= "                    \$v_reason = 'Blocked on first match by Visual Rule (' . \$v_id . ')';\n";
+        $out .= "                    \$v_reason = 'Blocked on first match by Custom Firewall Rule (' . \$v_id . ')';\n";
         $out .= "                    if (!empty(\$v_rule['sync_cloudflare']) || !empty(\$v_rule['ban_ttl'])) {\n";
         $out .= "                        \$ban_q_file = __DIR__ . '/.preload_ban_queue.json';\n";
         $out .= "                        \$ban_q = file_exists(\$ban_q_file) ? (json_decode((string) @file_get_contents(\$ban_q_file), true) ?: []) : [];\n";
@@ -744,7 +744,7 @@ class MicroWafCompiler {
         $out .= "            }\n";
         $out .= "        }\n\n";
 
-        // 5. Modular Intelligence Firewall Pre-Boot Lockdown (Visual rules already evaluated & allow-exemptions recorded above)
+        // 5. Modular Intelligence Firewall Pre-Boot Lockdown (Custom rules already evaluated & allow-exemptions recorded above)
         $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
         $out .= "        if (!\$mod_rescue_paused) {\n";
         $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked']) && !in_array('MOD-ABSPATH-LOCKED', \$vis_exempt_ids, true)) {\n";

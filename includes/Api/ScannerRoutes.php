@@ -3597,7 +3597,7 @@ class ScannerRoutes {
     }
 
     /**
-     * Return Visual Rule Studio field catalog plus live installed plugins/themes, roles, endpoints, AI & MCP status.
+     * Return Custom Firewall Rules field catalog plus live installed plugins/themes, roles, endpoints, AI & MCP status.
      */
     public static function get_modular_visual_fields(\WP_REST_Request $request) {
         $ctx = class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')
@@ -3668,7 +3668,7 @@ class ScannerRoutes {
     }
 
     /**
-     * Push a Visual Rule's HTTP/Network Wirefilter expression directly to Cloudflare Edge Custom Ruleset.
+     * Push a Custom Firewall Rule's HTTP/Network Wirefilter expression directly to Cloudflare Edge Custom Ruleset.
      */
     public static function push_custom_rule_to_cloudflare(\WP_REST_Request $request) {
         if (!class_exists('\\WebCareProScanner\\Firewall\\Modular\\VisualRuleExpressionEngine')) {
