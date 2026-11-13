@@ -4,7 +4,7 @@ Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 2.12.0
+Stable tag: 2.13.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -215,6 +215,12 @@ To compile the React admin application from source:
 4. Run `npm run package` to compile and package the release zip.
 
 == Changelog ==
+
+= 2.13.0 =
+* Context-Aware Instant Scan & Targeted Audit Mitigation Actions Overhaul: Eliminated irrelevant action buttons on unrecognized and unknown files (e.g. "Repair Core", "Repair Plugin", "Repair Theme", "Code Diff (FIM)", and "Strip Webshell" erroneously displayed on unknown_core_file findings like test.txt in WordPress root).
+* Formulated strict semantic classification predicates across all scanner interfaces: isUnknownFile strictly displays "Quarantine", "Delete Rogue File", and "View File"; isChecksumsUnavailable identifies unmanaged or custom components without official WP.org SVN checksums; isModifiedFile and isFimEligible restrict "Repair Core/Plugin/Theme" and "Visual Code Diff (FIM)" exclusively to verified modified official WordPress.org releases (excluding wp-config.php and unknown files); isInjectedWrapper restricts "Auto-Cure: Strip Webshell" exclusively to legitimate existing files where malware wrappers were prepended or injected; and isUser/isCron/isHook isolate non-file entities with dedicated context actions.
+* Rogue File Deletion Safeguard: Added 14-day WebCare Quarantine Vault automatic backup safety confirmation dialog before permanently deleting any rogue or untracked file via handleDeleteRogueFile().
+* Upstream Comparison Verification: Added fallback is_official_compared guard in VisualDiffModal for core and theme comparisons to prevent offering restoration when no upstream baseline exists.
 
 = 2.12.0 =
 * Plugin Check (PCP) Sandbox Authentication & RASP Hardening: Added original-table auth cookie verification (`get_original_table_prefix()`, `is_plugin_check_db_sandbox()`, `validate_cookie_against_original_tables()`), fixed `AUTH_COOKIE` scheme lookup, increased RASP stack inspection depth to 40 frames, and skipped seeding HoneyToken canary users/options inside temporary `*_pc_` compliance test sandboxes while keeping unauthenticated referer/action spoofing strictly blocked.

@@ -116,6 +116,7 @@ export interface SecurityScannerPageProps {
   handleAutoCureCore: (issue: IssueData) => Promise<void>;
   handleAutoCureStrip: (issue: IssueData) => Promise<void>;
   handleDeleteRogueFile: (issue: IssueData) => Promise<void>;
+  canQuarantineIssue?: (issue: IssueData | null | undefined) => boolean;
   handleDisableWpDebug: (issue: IssueData) => Promise<void>;
   handleUpdateIssue: (id: number | string, status: string) => Promise<void>;
   onOpenVisualDiff: (filePath: string, issueId?: number) => void;
@@ -1763,9 +1764,21 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     issue.type === 'outdated_core' ||
                     issue.type === 'vulnerable_core'
                   );
-                  const isTheme = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
-                  const isCore = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
-                  const isPlugin = !isUpdate && Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
+                  const isUnknownFile = Boolean(
+                    issue.type?.includes('unknown') ||
+                    issue.type?.includes('unrecognized') ||
+                    issue.type?.includes('extra') ||
+                    issue.type?.includes('disguised') ||
+                    issue.type?.includes('webshell') ||
+                    issue.type?.includes('backdoor') ||
+                    issue.type?.includes('malware') ||
+                    issue.type?.includes('rogue') ||
+                    issue.type?.includes('orphan') ||
+                    issue.type?.includes('unexpected') ||
+                    issue.type?.includes('unauthorized_dropin') ||
+                    issue.engine?.includes('uploads')
+                  );
+                  const isPhysicalFile = !isUser && Boolean(issue.file_path) && !issue.file_path.startsWith('cron:') && !issue.file_path.startsWith('wp_options:') && !issue.file_path.startsWith('db:') && !issue.file_path.startsWith('table:') && !issue.file_path.startsWith('user:') && !issue.file_path.startsWith('comment:') && (issue.file_path.includes('/') || issue.file_path.includes('\\'));
 
                   const isCustomOrPremium = Boolean(
                     issue.is_custom ||
@@ -1789,23 +1802,22 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                     issue.description?.toLowerCase().includes('checksums unavailable')
                   );
 
-                  const isUnknownFile = Boolean(
-                    issue.type?.includes('unknown') ||
-                    issue.type?.includes('extra') ||
-                    issue.type?.includes('disguised') ||
-                    issue.type?.includes('webshell') ||
-                    issue.type?.includes('backdoor') ||
-                    issue.type?.includes('malware') ||
-                    issue.engine?.includes('uploads')
-                  );
-                  const isPhysicalFile = !isUser && Boolean(issue.file_path) && !issue.file_path.startsWith('cron:') && !issue.file_path.startsWith('wp_options:') && !issue.file_path.startsWith('db:') && !issue.file_path.startsWith('table:') && !issue.file_path.startsWith('user:') && !issue.file_path.startsWith('comment:') && (issue.file_path.includes('/') || issue.file_path.includes('\\'));
-                  const isFimEligible = isPhysicalFile && !isUpdate && !isCustomOrPremium && !isUnknownFile && !isChecksumsUnavailable && (
+                  const isModifiedFile = isPhysicalFile && !isUpdate && !isCustomOrPremium && !isUnknownFile && !isChecksumsUnavailable && (
                     issue.type?.includes('modified') ||
+                    issue.type?.includes('missing') ||
                     issue.type?.includes('tampered') ||
                     issue.type?.includes('injected') ||
                     issue.type?.includes('mismatch') ||
+                    issue.type === 'core_integrity' ||
+                    issue.type === 'important_file_modified' ||
                     issue.file_path.endsWith('wp-config.php')
                   );
+
+                  const isTheme = !isUpdate && isPhysicalFile && isModifiedFile && !isUnknownFile && !isChecksumsUnavailable && Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
+                  const isCore = !isUpdate && isPhysicalFile && isModifiedFile && !isUnknownFile && !isChecksumsUnavailable && Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
+                  const isPlugin = !isUpdate && isPhysicalFile && isModifiedFile && !isUnknownFile && !isChecksumsUnavailable && Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
+
+                  const isFimEligible = isPhysicalFile && isModifiedFile && !isUpdate && !isCustomOrPremium && !isUnknownFile && !isChecksumsUnavailable;
 
                   const borderAccentColor =
                     issue.severity === 'critical' ? '#ef4444' :
@@ -2074,7 +2086,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           )}
 
                           {/* 2. Quarantine Action */}
-                          {issue.status === 'open' && isPhysicalFile && !issue.is_dir && (
+                          {(canQuarantineIssue ? canQuarantineIssue(issue) : (issue.status === 'open' && isPhysicalFile && !issue.is_dir)) && (
                             <button
                               type="button"
                               className="webcare-btn"
@@ -2174,6 +2186,32 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                             >
                               <Wand2 size={13} />
                               <span>Fix File Permissions</span>
+                            </button>
+                          )}
+
+                          {/* 5.5 Delete Rogue / Unknown File */}
+                          {issue.status === 'open' && isPhysicalFile && isUnknownFile && (
+                            <button
+                              type="button"
+                              className="webcare-btn"
+                              style={{
+                                background: '#fee2e2',
+                                color: '#b91c1c',
+                                border: '1px solid #fecaca',
+                                padding: '6px 14px',
+                                borderRadius: '7px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => handleDeleteRogueFile(issue)}
+                              title="Permanently delete this unrecognized rogue file from server"
+                            >
+                              <Trash2 size={13} />
+                              <span>Delete Rogue File</span>
                             </button>
                           )}
 
@@ -2397,17 +2435,21 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                         issue.description?.toLowerCase().includes('checksums unavailable')
                       );
 
-                      const isFimEligible = isPhysicalFile && !isUpdate && !isCustomOrPremium && !isUnknownFile && !isChecksumsUnavailable && (
+                      const isModifiedFile = isPhysicalFile && !isUpdate && !isCustomOrPremium && !isUnknownFile && !isChecksumsUnavailable && (
                         issue.type?.includes('modified') ||
+                        issue.type?.includes('missing') ||
                         issue.type?.includes('tampered') ||
                         issue.type?.includes('injected') ||
                         issue.type?.includes('mismatch') ||
+                        issue.type === 'core_integrity' ||
+                        issue.type === 'important_file_modified' ||
                         issue.file_path.endsWith('wp-config.php')
                       );
 
-                      const isPlugin = !isUpdate && Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
-                      const isCore = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
-                      const isTheme = !isUpdate && Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
+                      const isPlugin = !isUpdate && isPhysicalFile && isModifiedFile && !isUnknownFile && !isChecksumsUnavailable && Boolean(issue.file_path && issue.file_path.includes('/plugins/'));
+                      const isCore = !isUpdate && isPhysicalFile && isModifiedFile && !isUnknownFile && !isChecksumsUnavailable && Boolean(issue.file_path && (issue.file_path.includes('/wp-admin/') || issue.file_path.includes('/wp-includes/') || issue.type?.includes('core')) && !issue.file_path.endsWith('wp-config.php') && !issue.file_path.endsWith('.htaccess'));
+                      const isTheme = !isUpdate && isPhysicalFile && isModifiedFile && !isUnknownFile && !isChecksumsUnavailable && Boolean(issue.file_path && (issue.file_path.includes('/themes/') || issue.type?.includes('theme')));
+                      const isFimEligible = isPhysicalFile && isModifiedFile && !isUpdate && !isCustomOrPremium && !isUnknownFile && !isChecksumsUnavailable;
                       const isWebshell = Boolean(issue.code_snippet || issue.type?.includes('webshell') || issue.type?.includes('eval') || issue.type?.includes('injected') || issue.type?.includes('malware'));
 
                       const isEven = index % 2 === 0;
@@ -2680,7 +2722,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 )}
 
                                 {/* 3. Quarantine (Physical file) */}
-                                {issue.status === 'open' && isPhysicalFile && !issue.is_dir && (
+                                {issue.status === 'open' && isPhysicalFile && !issue.is_dir && (canQuarantineIssue ? canQuarantineIssue(issue) : true) && (
                                   <button
                                     type="button"
                                     className="webcare-btn"
@@ -2701,6 +2743,31 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                   >
                                     <Archive size={12} />
                                     <span>Quarantine</span>
+                                  </button>
+                                )}
+
+                                {/* 3.5 Delete Rogue / Unknown File */}
+                                {issue.status === 'open' && isPhysicalFile && isUnknownFile && (
+                                  <button
+                                    type="button"
+                                    className="webcare-btn"
+                                    style={{
+                                      background: '#fee2e2',
+                                      color: '#dc2626',
+                                      border: '1px solid #fca5a5',
+                                      fontSize: '12px',
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      fontWeight: 600,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}
+                                    onClick={() => handleDeleteRogueFile(issue)}
+                                    title="Permanently delete this unrecognized rogue file from server"
+                                  >
+                                    <Trash2 size={12} />
+                                    <span>Delete</span>
                                   </button>
                                 )}
 

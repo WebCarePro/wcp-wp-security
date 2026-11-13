@@ -26,6 +26,9 @@ test_*.js
 scripts/update-ui.js
 future-plan*.md
 roadmap plan.md
+*master_plan*.md
+*master-plan*.md
+*plan*.md
 
 # Frontend Source (compiled files in build/ are deployed)
 src/

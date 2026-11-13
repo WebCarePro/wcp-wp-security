@@ -1,4 +1,21 @@
-﻿v:2.12.0 - 2026-11-12
+﻿v:2.13.0 - 2026-11-13
+- Context-Aware Instant Scan & Targeted Audit Mitigation Actions Overhaul:
+  * Eliminated irrelevant action buttons on unrecognized and unknown files (e.g. "Repair Core", "Repair Plugin", "Repair Theme", "Code Diff (FIM)", and "Strip Webshell" erroneously displayed on unknown_core_file findings like test.txt in WordPress root).
+  * Formulated strict semantic classification predicates across all scanner interfaces:
+    - isUnknownFile: flags unrecognized, extra, rogue, backdoor, webshell, disguised, or unmanaged upload files; strictly displays "Quarantine", "Delete Rogue File", and "View File".
+    - isChecksumsUnavailable: identifies unmanaged, custom, or premium components without official WP.org SVN checksums; suppresses false-positive "Restore WP.org" actions.
+    - isModifiedFile / isFimEligible: restricts "Repair Core", "Repair Plugin", "Repair Theme", and "Visual Code Diff (FIM)" exclusively to verified modified official WordPress.org releases, explicitly excluding wp-config.php and unknown files.
+    - isInjectedWrapper: restricts "Auto-Cure: Strip Webshell" exclusively to legitimate existing files where malware wrappers were prepended or injected.
+    - isUser / isCron / isHook: isolates user accounts, cron tasks, and runtime hooks from physical file mitigations, rendering dedicated context actions ("Edit User", "Delete Cron Task", "Repair Role", "Strip Privileges", "Delete Account").
+  * Added 14-day WebCare Quarantine Vault automatic backup safety dialog before permanently deleting any rogue or untracked file via handleDeleteRogueFile().
+  * Added fallback is_official_compared guard to VisualDiffModal.tsx for core and theme comparisons to prevent offering restoration when no upstream baseline exists.
+- Refined MCP Tier 3+ Auto-Staging, Snapshot Preload Recompile & Deep Upload/JSON Payload Guards:
+  * Enforced mandatory staged confirmation on dynamic Tier 3+ escalations (such as custom visual allow rules) in MCPAgentService.
+  * Added automatic MicroWafCompiler pre-boot recompilation to MCPSnapshotManager::restore_snapshot().
+  * Integrated FirewallEngine::flatten_uploaded_files() in ModularFirewallSynthesizer for multi-dimensional inspection.
+  * Added JSON body fallback parameter lookup for SSRF inspection in Category 5 (egress_lock).
+
+v:2.12.0 - 2026-11-12
 - Plugin Check (PCP) Sandbox Auth & RASP Hardening:
   * Fixed false-positive self-IP ban and WAF-RASP-META-INJECTION / WAF-GUEST-AJAX-PROBE blocks triggered when an authenticated administrator runs WordPress Plugin Check (PCP) runtime checks under *_pc_ amended database tables:
     - Added FirewallEngine::get_original_table_prefix() and FirewallEngine::is_plugin_check_db_sandbox() verifying immutable $GLOBALS['table_prefix'] against $wpdb->base_prefix alongside active PCP PHP runtime classes/drop-in constants (never trusting HTTP headers or unauthenticated query strings).
