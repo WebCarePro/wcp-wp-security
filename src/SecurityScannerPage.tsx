@@ -198,6 +198,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
   handleAutoCureCore,
   handleAutoCureStrip,
   handleDeleteRogueFile,
+  canQuarantineIssue,
   handleDisableWpDebug,
   handleUpdateIssue,
   onOpenVisualDiff,
@@ -212,6 +213,54 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
   const [dashboardSubTab, setDashboardSubTab] = useState<
     'issues' | 'attack_chain' | 'persistence' | 'baseline' | 'transactions' | 'whitelist' | 'quarantine' | 'files'
   >('issues');
+
+  const isQuarantinable = (iss: IssueData | null | undefined): boolean => {
+    if (typeof canQuarantineIssue === 'function') {
+      return canQuarantineIssue(iss);
+    }
+    if (!iss || iss.status !== 'open') return false;
+    if (
+      iss.is_hook ||
+      iss.is_db ||
+      iss.is_db_table ||
+      iss.engine === 'database-table' ||
+      iss.is_user ||
+      iss.is_post ||
+      iss.is_comment ||
+      iss.engine === 'content-comments' ||
+      iss.is_software_update ||
+      iss.is_dir ||
+      iss.is_server_config ||
+      iss.is_network ||
+      iss.engine === 'ip-detection' ||
+      iss.engine === 'waf-status' ||
+      iss.type === 'reverse_proxy_misconfigured' ||
+      iss.type === 'plugin_checksums_unavailable' ||
+      iss.type === 'theme_checksums_unavailable' ||
+      iss.type?.includes('_checksums_unavailable') ||
+      !iss.file_path ||
+      iss.file_path.startsWith('cron:') ||
+      iss.file_path.startsWith('wp_options:') ||
+      iss.file_path.startsWith('db:') ||
+      iss.file_path.startsWith('table:') ||
+      iss.file_path.startsWith('user:') ||
+      iss.file_path.startsWith('comment:') ||
+      iss.file_path.startsWith('server:') ||
+      (!iss.file_path.includes('/') && !iss.file_path.includes('\\') && iss.file_path.includes('.') && iss.file_path.includes('[ID:'))
+    ) {
+      return false;
+    }
+    const path = iss.file_path.toLowerCase().replace(/\\/g, '/');
+    const protectedBasenames = [
+      'wp-config.php',
+      '.htaccess',
+      'wp-settings.php',
+      'wp-load.php',
+      'wp-blog-header.php',
+      'wp-login.php',
+    ];
+    return !protectedBasenames.some((b) => path.endsWith('/' + b) || path === b);
+  };
 
   // Findings View Mode: Technical Table (Default) vs Simple Cards
   const [findingsViewMode, setFindingsViewMode] = useState<'simple' | 'technical'>(() => {
@@ -2086,7 +2135,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                           )}
 
                           {/* 2. Quarantine Action */}
-                          {(canQuarantineIssue ? canQuarantineIssue(issue) : (issue.status === 'open' && isPhysicalFile && !issue.is_dir)) && (
+                          {isQuarantinable(issue) && (
                             <button
                               type="button"
                               className="webcare-btn"
@@ -2722,7 +2771,7 @@ export const SecurityScannerPage: React.FC<SecurityScannerPageProps> = ({
                                 )}
 
                                 {/* 3. Quarantine (Physical file) */}
-                                {issue.status === 'open' && isPhysicalFile && !issue.is_dir && (canQuarantineIssue ? canQuarantineIssue(issue) : true) && (
+                                {isQuarantinable(issue) && (
                                   <button
                                     type="button"
                                     className="webcare-btn"
