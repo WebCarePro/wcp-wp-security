@@ -1,4 +1,9 @@
 ﻿v:2.14.0 - 2026-11-14
+- Namespace Resolution & Pre-Boot Custom Rule Allowlist Hardening (Argon Review):
+  * OriginLoadCircuitBreaker Namespace Cleanup:
+    - Removed redundant and incorrect use declaration in OriginLoadCircuitBreaker.php. Both classes share the WebCareProScanner\Firewall\CAF namespace, resolving class lookup on survival mode defense escalation.
+  * Pre-Boot Custom Visual Rule URL Allowlist Exemption:
+    - Added !$url_whitelisted check to Visual Custom Rules compilation in MicroWafCompiler.php, ensuring whitelisted URLs bypass custom visual heuristic rules while keeping mandatory exploit signatures active.
 - Concurrency, Crash Safety & Whole-Archive Validation Hardening (Review 649cecd Findings):
   * Finding 1.1 (Atomic Compare-And-Swap Cloudflare Lock Takeover & Release):
     - Replaced non-atomic expired lock update_option() in CloudflareIpListSynchronizer::acquire_sync_lock() with atomic database-level Compare-And-Swap (UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s). Guarantees only one concurrent worker acquires the lease token.

@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace WebCareProScanner\Firewall\CAF;
 
 use WebCareProScanner\Cloudflare\CloudflareService;
-use WebCareProScanner\Cloudflare\CloudflareSlotOptimizer;
 use WebCareProScanner\Firewall\WafFileLogger;
 use WebCareProScanner\System\SettingsManager;
 

@@ -614,7 +614,7 @@ class MicroWafCompiler {
         $out .= "        }\n";
         $out .= "        \$mod_rules = json_decode('{$modular_json_escaped}', true) ?: [];\n";
         $out .= "        \$vis_exempt_ids = [];\n";
-        $out .= "        if (!\$mod_rescue_paused && !empty(\$mod_rules['visual_rules_enforced'])) {\n";
+        $out .= "        if (!\$mod_rescue_paused && !\$url_whitelisted && !empty(\$mod_rules['visual_rules_enforced'])) {\n";
         $out .= "            \$trusted_visual = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
         $out .= "            \$vis_q_pos = strpos(\$uri, '?');\n";
         $out .= "            \$vis_query = \$vis_q_pos === false ? '' : substr(\$uri, \$vis_q_pos + 1);\n";
