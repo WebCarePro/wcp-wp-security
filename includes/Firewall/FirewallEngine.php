@@ -6654,6 +6654,7 @@ class FirewallEngine {
                     $integrity_violation = true;
                     $integrity_reason    = 'Failed to open temp file for streaming inspection';
                 } else {
+                    $is_gzipped_upload = ($ext === 'svgz');
                     $u_prev = '';
                     $u_read = 0;
                     while (!feof($ufp)) {
@@ -6670,6 +6671,10 @@ class FirewallEngine {
 
                         hash_update($h_ctx, $u_chunk);
                         $u_read += strlen($u_chunk);
+
+                        if ($u_read === strlen($u_chunk) && substr($u_chunk, 0, 2) === "\x1f\x8b") {
+                            $is_gzipped_upload = true;
+                        }
 
                         if ($is_svg) {
                             $svg_raw_buf .= $u_chunk;
@@ -6692,7 +6697,7 @@ class FirewallEngine {
                             break;
                         }
 
-                        if (!$is_svg) {
+                        if (!$is_gzipped_upload) {
                             $u_win = $u_prev . $u_chunk;
                             if (preg_match($php_pattern, $u_win) || stripos($u_win, '__HALT_COMPILER()') !== false) {
                                 $polyglot_hit = true;
@@ -6834,7 +6839,9 @@ class FirewallEngine {
                             return $file;
                         }
 
-                        // High-ratio compression bomb safeguard (ratio > 200:1)
+                        // Additional post-decompression safety policy: flag high-ratio compression bombs (> 200:1).
+                        // Note: Bounded decompression via @gzdecode($svg_content, $max_decompressed_bytes) is the primary resource-safety
+                        // mechanism preventing memory exhaustion; this check enforces an additional structural safety policy.
                         $c_len = strlen($svg_content);
                         $d_len = strlen($decompressed);
                         if ($c_len > 0 && ($d_len / $c_len) > 200) {
@@ -6866,6 +6873,35 @@ class FirewallEngine {
                         }
 
                         $svg_content = $decompressed;
+                    }
+
+                    // PHP polyglot patterns & Phar deserialization headers in SVG / decompressed SVGZ
+                    if (preg_match($php_pattern, $svg_content) || stripos($svg_content, '__HALT_COMPILER()') !== false) {
+                        $client_ip = self::get_client_ip();
+                        if ($log_and_ban) {
+                            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                                self::add_blocked_ip(
+                                    $client_ip,
+                                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] PHP/Phar polyglot in SVG/SVGZ: %s', $filename),
+                                    86400,
+                                    'WAF-POLYGLOT-UPLOAD-TRAP',
+                                    'SVG/SVGZ Polyglot & Phar Armor (Rule #54)',
+                                    'Malicious File Upload'
+                                );
+                            }
+                            self::log_incident([
+                                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                                'category'    => 'Malicious File Upload',
+                                'description' => sprintf('Disguised PHP polyglot webshell or Phar deserialization header in SVG/SVGZ file "%s" was blocked.', esc_html($filename)),
+                                'payload'     => "Filename: {$filename}",
+                            ], 'blocked');
+                        }
+
+                        $file['error']     = __('Security Firewall: Disguised PHP polyglot webshell or Phar deserialization header detected inside SVG/SVGZ file.', 'webcare-pro-security');
+                        $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
+                        $file['rule_name'] = 'SVG/SVGZ Polyglot & Phar Armor (Rule #54)';
+                        $file['category']  = 'Malicious File Upload';
+                        return $file;
                     }
 
                     // SVG XSS & Active JavaScript Audit (Rule #54)

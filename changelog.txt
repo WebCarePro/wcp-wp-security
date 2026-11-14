@@ -1,14 +1,15 @@
 ﻿v:2.15.0 - 2026-11-15
-- Zero-Gap Fail-Closed Streaming, Multipart Resource Ceilings, SVGZ Decompression Bomb Defense & Unified Upload Integrity:
-  * SVGZ Decompression Bomb & Resource Exhaustion Defense (P1):
-    - Replaced unbounded gzdecode() with bounded decompression enforcing a strict maximum decompressed length ($max_decompressed_bytes, 4 MB).
+- Zero-Gap Fail-Closed Streaming, Multipart Resource Ceilings, SVGZ Decompression Bomb Defense, Full Upload Integrity & Phar Signature Parity:
+  * SVGZ Decompression Bomb Defense & Resource Safety Policy (P1 & P2):
+    - Replaced unbounded gzdecode() with bounded decompression enforcing a strict maximum decompressed length ($max_decompressed_bytes, 4 MB) as the primary resource-safety mechanism preventing memory exhaustion.
     - Failed closed (WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR) whenever decompression fails, is corrupted, or exceeds the 4 MB ceiling, eliminating worker memory exhaustion and zip-bomb denial of service.
-    - Implemented a 200:1 compression ratio threshold check to proactively catch high-expansion compression bombs before memory allocation.
+    - Applied an additional post-decompression safety policy enforcing a 200:1 compression ratio ceiling to reject abnormal compression expansions.
     - Eliminated silent fallback to inspecting raw compressed bytes, ensuring vector files are either safely and completely inspected or blocked fail-closed.
-  * Unified Upload Stream Integrity & Post-Scan Mutation Defense (P2):
+  * Unified Upload Stream Integrity, Post-Scan Mutation Defense & Full Phar Signature Parity (P2):
     - Unified SVG, SVGZ, and media uploads (JPEG, PNG, GIF, WebP, PDF, ICO, AVIF) under a single bounded streaming inspection pipeline.
     - Applied pre-scan metadata capture (filesize, filemtime, fileinode, ceiling check) and 64 KB chunk reading with incremental SHA-256 digest calculation across all upload types.
     - Enforced post-scan disk revalidation (verifying exact bytes read, post-scan filesize, filemtime, fileinode, and disk SHA-256 match) for SVG/SVGZ uploads, guaranteeing identical anti-tamper and anti-TOCTOU protection across all supported file types (WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED).
+    - Enforced full signature parity across SVG and SVGZ uploads: inspected raw SVG streams and safely decompressed SVGZ payloads for both PHP execution polyglots ($php_pattern) and Phar deserialization headers (__HALT_COMPILER()), eliminating coverage gaps for weaponized vector uploads.
   * Multipart Wire-Body vs. Application Payload Semantics & File Invariants (P2):
     - Clarified the distinction between transport-layer wire-body ceilings (enforced unconditionally via validated server-provided Content-Length) and application-layer payload consistency checks ($accounted_multipart_bytes = $post_text_bytes + $total_files_bytes).
     - Failed closed when application-layer payload exceeds declared transport Content-Length (WAF-MULTIPART-SIZE-MISMATCH) or safe inspection ceiling (WAF-BODY-INSPECTION-LIMIT-EXCEEDED).
@@ -19,7 +20,7 @@
     - Enforced mask_password_fields_for_heuristics() traversing parsed URL-encoded and JSON structures up to depth 4 to mask passwords <= 128 bytes in heuristic representations ($heuristic_combined), while retaining passwords > 128 bytes for heuristic inspection (WAF-XSS-PAYLOAD).
     - Ensured mandatory signatures (SQLi, PHP code injection/RCE, PHP Object Injection, LFI, SSRF) continue to inspect 100% unredacted raw bodies.
   * Verification & Compliance:
-    - Expanded test suite to 22 comprehensive scenarios with 30 assertions, passing 100% in Docker test environment.
+    - Expanded test suite to 23 comprehensive scenarios with 34 assertions, passing 100% in Docker test environment.
     - Verified official WordPress Plugin Check (PCP) reports 0 errors and 0 warnings.
 
 v:2.14.0 - 2026-11-14
