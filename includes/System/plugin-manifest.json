@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-14T09:53:09.617Z",
+  "generated_at": "2026-11-14T10:11:31.426Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -232,8 +232,8 @@
       "size": 53387
     },
     "includes/Cloudflare/CloudflareService.php": {
-      "sha256": "a71989d304d30229f6147463a72605bf4e123413f922416cf0cc51c9646a6968",
-      "size": 93760
+      "sha256": "4362f4b9edf5d71c4f0819e87983b31ec542c4418a4348b67908b0962a4ab9ee",
+      "size": 93838
     },
     "includes/Content/BlockDirectiveSanitizer.php": {
       "sha256": "642e6ac48edfb5c557f7842f0b68405048371a363582a6a2983413e2da1d6cac",
@@ -400,12 +400,12 @@
       "size": 25129
     },
     "includes/Firewall/CAF/CloudflareIpListSynchronizer.php": {
-      "sha256": "9275d91e2c7d73a9718623045205c12c289f6d402540b974706532070a5c2bc5",
-      "size": 27687
+      "sha256": "31e530171d4e0abc3c0c7a10582c1a5b1ad96e70f1b802c97bee008d6218655f",
+      "size": 38585
     },
     "includes/Firewall/CAF/CloudflareSlotOptimizer.php": {
-      "sha256": "6974d57f6adce32d9502d6073c2b85431218ad662dbb1a9ead0f4ba980669334",
-      "size": 27419
+      "sha256": "e5c773d26517804ee06467ced8b62b39a3e653c3494828f6d68f9e397bbe43a8",
+      "size": 30803
     },
     "includes/Firewall/CAF/ConflictAvoidanceEngine.php": {
       "sha256": "552a2b9d16d8621331c14a7e2985f7c6dc2b8e30e8f957df6026f779e154fcf8",

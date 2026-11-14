@@ -37,22 +37,74 @@ class CloudflareSlotOptimizer {
     public const WEBCARE_VISUAL_MARKER      = '[WEBCARE-MOD-VISUAL:';
 
     /**
+     * Fetch existing rules safely with tri-state status reporting (CF-05).
+     * Distinguishes between successful rulesets, fresh uninitialized zones (404 / 10003),
+     * and actual network/API failures (timeouts, 5xx, 401/403).
+     *
+     * @param string $zone_id Cloudflare Zone ID
+     * @return array ['ok' => bool, 'rules' => array, 'error' => string]
+     */
+    public function get_zone_rules_safe(string $zone_id): array {
+        if (empty($zone_id)) {
+            return [
+                'ok'    => false,
+                'rules' => [],
+                'error' => __('Cloudflare Zone ID is missing.', 'webcare-pro-security'),
+            ];
+        }
+
+        $res = CloudflareService::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
+
+        if (!empty($res['success'])) {
+            $rules = (!empty($res['result']['rules']) && is_array($res['result']['rules']))
+                ? $res['result']['rules']
+                : [];
+            return [
+                'ok'    => true,
+                'rules' => $rules,
+                'error' => '',
+            ];
+        }
+
+        // Check if this is a fresh zone where the phase entrypoint ruleset hasn't been created yet
+        $err_code = (int) ($res['errors'][0]['code'] ?? 0);
+        $http_code = (int) ($res['http_code'] ?? 0);
+        $err_msg = strtolower((string) ($res['errors'][0]['message'] ?? ''));
+
+        $is_fresh_entrypoint = (
+            $http_code === 404
+            || $err_code === 10003
+            || str_contains($err_msg, 'ruleset not found')
+            || str_contains($err_msg, 'could not find')
+            || str_contains($err_msg, 'does not exist')
+        );
+
+        if ($is_fresh_entrypoint) {
+            return [
+                'ok'    => true,
+                'rules' => [],
+                'error' => '',
+            ];
+        }
+
+        $err = $res['errors'][0]['message'] ?? __('Failed to fetch zone rules from Cloudflare API.', 'webcare-pro-security');
+        return [
+            'ok'    => false,
+            'rules' => [],
+            'error' => $err,
+        ];
+    }
+
+    /**
      * Fetch existing rules from Cloudflare Zone Custom Rulesets entrypoint.
+     * Backwards-compatible wrapper around get_zone_rules_safe().
      *
      * @param string $zone_id Cloudflare Zone ID
      * @return array
      */
     public function get_zone_rules(string $zone_id): array {
-        if (empty($zone_id)) {
-            return [];
-        }
-
-        $res = CloudflareService::request("zones/{$zone_id}/rulesets/phases/http_request_firewall_custom/entrypoint");
-        if (!empty($res['success']) && !empty($res['result']['rules']) && is_array($res['result']['rules'])) {
-            return $res['result']['rules'];
-        }
-
-        return [];
+        $safe = $this->get_zone_rules_safe($zone_id);
+        return $safe['ok'] ? $safe['rules'] : [];
     }
 
     /**
@@ -233,8 +285,20 @@ class CloudflareSlotOptimizer {
             ];
         }
 
-        // 1. Fetch existing rules to preserve both Custom Firewall Rules and user-defined custom rules
-        $existing_rules = $this->get_zone_rules($zone_id);
+        // 1. Fetch existing rules safely to preserve both Custom Firewall Rules and user-defined custom rules (CF-05)
+        $fetch = $this->get_zone_rules_safe($zone_id);
+        if (empty($fetch['ok'])) {
+            return [
+                'success' => false,
+                'message' => sprintf(
+                    /* translators: %s: Cloudflare API error description */
+                    __('Aborted Cloudflare ruleset sync: Could not verify existing zone rules from Cloudflare API (%s). Customer rules were left untouched.', 'webcare-pro-security'),
+                    $fetch['error'] ?? 'API connection failure'
+                ),
+            ];
+        }
+
+        $existing_rules = $fetch['rules'];
         $visual_rules   = [];
         $user_rules     = [];
 
@@ -281,8 +345,38 @@ class CloudflareSlotOptimizer {
             $slot_budget
         );
 
-        // 6. Merge Visual Studio Rules + WebCare CAF Rules + preserved user rules (Visual & WebCare Rules placed at top priority)
-        $final_rules = array_merge($visual_rules, $webcare_rules, $user_rules);
+        // 6. Merge in non-shadowing priority order (CF-05):
+        // Customer allow/skip rules -> Visual allow/skip rules -> Visual block rules -> WebCare compound rules -> User other rules
+        $user_allow_rules   = [];
+        $user_other_rules   = [];
+        $visual_allow_rules = [];
+        $visual_block_rules = [];
+
+        foreach ($user_rules as $r) {
+            $action = (string) ($r['action'] ?? '');
+            if (in_array($action, ['skip', 'allow'], true)) {
+                $user_allow_rules[] = $r;
+            } else {
+                $user_other_rules[] = $r;
+            }
+        }
+
+        foreach ($visual_rules as $vr) {
+            $action = (string) ($vr['action'] ?? '');
+            if ($action === 'skip' || $action === 'allow') {
+                $visual_allow_rules[] = $vr;
+            } else {
+                $visual_block_rules[] = $vr;
+            }
+        }
+
+        $final_rules = array_merge(
+            $user_allow_rules,
+            $visual_allow_rules,
+            $visual_block_rules,
+            $webcare_rules,
+            $user_other_rules
+        );
 
         $payload = [
             'rules' => $final_rules,

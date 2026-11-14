@@ -1,4 +1,23 @@
 ﻿v:2.14.0 - 2026-11-14
+- Cloudflare Synchronization & Ruleset Safety Hardening (CF-01 through CF-05):
+  * CF-01 (Durable Per-Item Queue State Machine & Mutex Lock):
+    - Added 60-second atomic transient mutex lock (webcare_cf_sync_queue_lock) in CloudflareIpListSynchronizer::process_sync_queue() to eliminate race conditions between WP-Cron and post-response shutdown handlers.
+    - Upgraded ban queue entries to a durable state machine tracking status, attempt counters, next_retry timestamps, and last error diagnostics.
+    - Guaranteed zero ban loss by removing only confirmed synced target IPs from the queue; unconfirmed items are retained with exponential backoff (min 30s * 2^attempts, capped at 1 hour) and transition to failed status after 5 failed attempts.
+    - Updated flush_immediate_shutdown_bans() to automatically merge unconfirmed shutdown bans back into the persistent queue for reliable background retry.
+  * CF-02 (Write-Permission Fallback from Account List to Zone Access Rules):
+    - Added automatic permission fallback in sync_via_account_list(): when Cloudflare token lacks Account List write permissions or POST /items fails, the scope is automatically downgraded to zone in transients and immediately retried via Zone IP Access Rules without dropping bans.
+  * CF-03 (Safe Subnet Aggregation Defaults):
+    - Gated automated CIDR subnet aggregation behind cloudflare_subnet_aggregation_enabled (defaulting to false so individual IPs are banned by default, eliminating collateral damage on shared mobile/CGNAT carrier subnets).
+    - When enabled, raised IPv4 /24 aggregation threshold from 4 to 10 distinct attacking IPs within a 15-minute window.
+    - Strictly prohibited automatic IPv6 /64 aggregation unless cloudflare_subnet_v6_aggregation_enabled is explicitly toggled by the administrator and at least 16 distinct IPv6 addresses are detected.
+  * CF-04 (Acknowledgement-Based Unban Pruning):
+    - Hardened prune_expired_bans() to verify Cloudflare DELETE API responses before removing items from the active edge bans ledger.
+    - Confirmed unbans or already-deleted rules (HTTP 404 / code 10002) are safely pruned, while failed DELETE requests retain the entry in the ledger under unban_status => unban_retry for automated retry on subsequent runs.
+  * CF-05 (Cloudflare Ruleset Safety & Priority Ordering):
+    - Added tri-state get_zone_rules_safe() in CloudflareSlotOptimizer to distinguish between successful rulesets, fresh uninitialized zones (HTTP 404 / code 10003), and actual network/API failures.
+    - Aborted deploy_to_cloudflare() immediately upon ruleset fetch errors before issuing any PUT request, protecting existing customer Cloudflare WAF rulesets from accidental erasure during network timeouts or Cloudflare outages.
+    - Enforced non-shadowing rule ordering: customer allow/skip rules and visual studio skip rules are placed at top priority ahead of WebCare terminating block rules, guaranteeing customer whitelists and exceptions are never overridden.
 - Pre-Boot Micro-WAF & Cryptographic Preload Auth Hardening (MW-01, MW-02, MW-03, WCP-11, WCP-13):
   * MW-01 & WCP-13 (Cryptographic Preload Auth Verification):
     - Completely eliminated unverified wordpress_logged_in_* cookie-name substring checks prior to WordPress core bootstrap.

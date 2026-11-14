@@ -88,12 +88,14 @@ class CloudflareService {
 
         if (!is_array($data)) {
             return [
-                'success' => false,
+                'success'   => false,
+                'http_code' => $code,
                 // translators: %d: HTTP status code
-                'errors'  => [['message' => sprintf(__('Invalid response from Cloudflare API (HTTP %d).', 'webcare-pro-security'), $code)]],
+                'errors'    => [['message' => sprintf(__('Invalid response from Cloudflare API (HTTP %d).', 'webcare-pro-security'), $code)]],
             ];
         }
 
+        $data['http_code'] = $code;
         return $data;
     }
 
