@@ -1,4 +1,23 @@
 ﻿v:2.14.0 - 2026-11-14
+- Bounded Streaming Body Inspection, Unredacted Password Analysis & Strict Route-Schema Boundaries:
+  * Unredacted Password Fields in Mandatory Inspection (Finding 1):
+    - Removed early unsetting of password fields (pwd, password, pass1, pass2, account_password) from POST collection in evaluate_rules().
+    - Zero-tolerance mandatory signatures (SQLi, PHP code injection/RCE, PHP Object Injection, LFI/traversal, stream wrappers, SSRF, null-byte poison) now inspect 100% of password fields unredacted.
+    - Password masking is strictly confined to the separate heuristic representation ($heuristic_combined), ensuring random user passwords with <script or prompt keywords never trigger false-positive XSS or AI-Prompt blocks.
+  * Bounded Streaming Request-Body Inspection with Rolling Overlap & Fail-Closed Ceiling (Finding 2):
+    - Replaced head/tail truncation with bounded streaming inspection reading php://input in 64 KB (65,536-byte) chunks up to a configurable ceiling ($max_inspect_bytes, default 4 MB).
+    - Maintained an 8 KB (8,192-byte) rolling tail overlap between consecutive chunks so multi-keyword exploit signatures split across chunk boundaries are caught.
+    - Implemented fail-closed oversize enforcement (WAF-BODY-INSPECTION-LIMIT-EXCEEDED) for non-multipart request bodies exceeding the inspection ceiling.
+  * Strict REST Route Boundaries & Query Parameter Hardening for Content Authors (Finding 3):
+    - Added shared helper resolve_normalized_rest_route() extracting exact REST paths from /wp-json/ or rest_route query parameter.
+    - Strictly anchored Gutenberg authoring routes with ^ and $ boundaries (#^/wp/v2/(?:(?:posts|pages|blocks)(?:/\d+)?(?:/autosaves)?|(?:templates|template-parts|navigation|global-styles)(?:/[a-z0-9_/-]+)?)$#i), strictly rejecting non-authoring routes like /wp-json/wp/v2/posts-custom.
+    - Strictly anchored third-party page builder REST endpoints and eliminated query-string preview flags (elementor-preview, etc.) from granting write exemptions to POST/PUT/PATCH requests.
+  * Strict Route-Schema-Aware Configuration Expression Masking:
+    - Refactored redact_waf_config_expressions() to branch explicitly on normalized route path: redacting only allowlist keys on /settings, /settings/import, and /wizard/save; redacting only rule expression keys on /modular-waf/rule/*; and returning all other routes completely untouched.
+  * Object Injection Boundary Hardening:
+    - Added = to the leading delimiter class ([\s"\';,\[\]{}=]) in $stream_and_pop_regex, ensuring serialized PHP objects passed in key=value POST/GET parameters are immediately detected and blocked.
+  * Regression Verification:
+    - Verified all 9 adversarial test scenarios passing in Docker environment with 0 errors and 0 warnings on official WordPress Plugin Check (PCP).
 - Unredacted Mandatory Exploit Payloads & Schema-Aware Heuristic Masking (P1 Fix):
   * Guaranteed that $params_to_check, $combined_payload, and $decoded_combined remain 100% unredacted across all requests, ensuring mandatory exploit signatures (SQLi, RCE, LFI, PHP Object Injection, SSRF, null-byte poison) inspect every submitted field, including nested metadata.pattern and rule conditions without modification.
   * Replaced global recursive key stripping in redact_waf_config_expressions() with schema-aware masking restricted to top-level and known container paths (settings, firewall_settings, rule, rules), preventing arbitrary nested keys from being inadvertently masked.

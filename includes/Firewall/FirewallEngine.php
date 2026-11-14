@@ -645,6 +645,26 @@ class FirewallEngine {
     }
 
     /**
+     * Resolve and normalize REST API route from request URI or query parameters.
+     * Returns normalized path with leading slash and without trailing slash (e.g. '/wp/v2/posts').
+     *
+     * @param string $request_uri
+     * @return string Normalized route path or empty string.
+     */
+    public static function resolve_normalized_rest_route(string $request_uri): string {
+        $parsed_path = (string) (wp_parse_url($request_uri, PHP_URL_PATH) ?? '');
+        if (preg_match('#/wp-json(/[^?]+)#i', $parsed_path, $rm)) {
+            return '/' . trim($rm[1], '/');
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if (isset($_GET['rest_route']) && is_string($_GET['rest_route'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            return '/' . trim(sanitize_text_field(wp_unslash($_GET['rest_route'])), '/');
+        }
+        return '';
+    }
+
+    /**
      * Safe-pass verification for authenticated Editors, Authors, and Shop Managers in page builder/REST contexts (WCP-16).
      */
     public static function is_verified_editor_builder_request(string $request_uri): bool {
@@ -663,12 +683,19 @@ class FirewallEngine {
             return false;
         }
 
-        $parsed_path = (string) (wp_parse_url($request_uri, PHP_URL_PATH) ?? '');
-        $is_rest_authoring = (bool) preg_match(
-            '#/wp-json/(?:wp/v2/(?:posts|pages|blocks|templates|template-parts)(?:/\d+)?|elementor/v\d+/)#i',
-            $parsed_path
+        $rest_route = self::resolve_normalized_rest_route($request_uri);
+        $is_gutenberg_rest = (bool) preg_match(
+            '#^/wp/v2/(?:(?:posts|pages|blocks)(?:/\d+)?(?:/autosaves)?|(?:templates|template-parts|navigation|global-styles)(?:/[a-z0-9_/-]+)?)$#i',
+            $rest_route
+        );
+        $is_builder_rest = (bool) preg_match(
+            '#^/(?:elementor/v\d+/(?:documents|globals|kits|template)(?:/[a-z0-9_/-]+)?|(?:breakdance|brizy|seedprod|droip|generateblocks|kadence|uag|fusion-builder)/v\d+/[a-z0-9_/-]+)$#i',
+            $rest_route
         );
 
+        $is_rest_authoring = ($is_gutenberg_rest || $is_builder_rest);
+
+        $parsed_path = (string) (wp_parse_url($request_uri, PHP_URL_PATH) ?? '');
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $req_action = isset($_REQUEST['action']) ? sanitize_key((string) $_REQUEST['action']) : '';
         $is_ajax_builder = str_contains($parsed_path, 'admin-ajax.php')
@@ -711,8 +738,11 @@ class FirewallEngine {
      *
      * @return bool
      */
-    public static function is_authenticated_editor_or_builder(): bool {
+    public static function is_authenticated_editor_or_builder(bool $reset = false): bool {
         static $cached_builder_result = null;
+        if ($reset) {
+            $cached_builder_result = null;
+        }
         if ($cached_builder_result !== null) {
             return $cached_builder_result;
         }
@@ -814,15 +844,14 @@ class FirewallEngine {
             ? \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('page_builder')
             : true;
 
-        $parsed_builder_path = (string) (wp_parse_url($request_uri, PHP_URL_PATH) ?? '');
+        $rest_route = self::resolve_normalized_rest_route($request_uri);
         $is_gutenberg_rest = (bool) preg_match(
-            '#/wp-json/wp/v2/(?:posts|pages|blocks|templates|template-parts)(?:/\d+)?#i',
-            $parsed_builder_path
+            '#^/wp/v2/(?:(?:posts|pages|blocks)(?:/\d+)?(?:/autosaves)?|(?:templates|template-parts|navigation|global-styles)(?:/[a-z0-9_/-]+)?)$#i',
+            $rest_route
         );
 
-        $is_builder_ajax    = false;
-        $is_builder_rest    = false;
-        $is_builder_preview = false;
+        $is_builder_ajax = false;
+        $is_builder_rest = false;
 
         if ($has_builders) {
             // 20 Popular WordPress Visual Builders & Block Suites:
@@ -851,40 +880,12 @@ class FirewallEngine {
                 'kadence_save_block', 'generateblocks_save', 'uagb_save_block',
             ], true);
 
-            $is_builder_rest = (
-                strpos($request_uri, '/wp-json/elementor/') !== false ||
-                strpos($request_uri, '/wp-json/breakdance/') !== false ||
-                strpos($request_uri, '/wp-json/brizy/') !== false ||
-                strpos($request_uri, '/wp-json/seedprod/') !== false ||
-                strpos($request_uri, '/wp-json/droip/') !== false ||
-                strpos($request_uri, '/wp-json/generateblocks/') !== false ||
-                strpos($request_uri, '/wp-json/kadence/') !== false ||
-                strpos($request_uri, '/wp-json/uag/') !== false ||
-                strpos($request_uri, '/wp-json/fusion-builder/') !== false
+            $is_builder_rest = (bool) preg_match(
+                '#^/(?:elementor/v\d+/(?:documents|globals|kits|template)(?:/[a-z0-9_/-]+)?|(?:breakdance|brizy|seedprod|droip|generateblocks|kadence|uag|fusion-builder)/v\d+/[a-z0-9_/-]+)$#i',
+                $rest_route
             );
-
-            // phpcs:disable WordPress.Security.NonceVerification.Recommended -- Page builder preview detection at early runtime
-            $is_builder_preview = (
-                isset($_GET['elementor-preview']) ||
-                isset($_GET['et_fb']) ||
-                isset($_GET['fl_builder']) ||
-                isset($_GET['bricks']) ||
-                isset($_GET['breakdance']) ||
-                isset($_GET['ct_builder']) ||
-                isset($_GET['seedprod_builder']) ||
-                isset($_GET['brizy-edit']) ||
-                isset($_GET['tve']) ||
-                isset($_GET['vc_editable']) ||
-                isset($_GET['vcv-action']) ||
-                isset($_GET['tb_preview']) ||
-                isset($_GET['siteorigin_panels_live_editor']) ||
-                isset($_GET['droip_editor']) ||
-                isset($_GET['dslc']) ||
-                isset($_GET['fb-edit'])
-            );
-            // phpcs:enable WordPress.Security.NonceVerification.Recommended
         }
-        if ($is_builder_ajax || $is_gutenberg_rest || $is_builder_rest || $is_builder_preview) {
+        if ($is_builder_ajax || $is_gutenberg_rest || $is_builder_rest) {
             return ($cached_builder_result = true);
         }
 
@@ -2145,13 +2146,7 @@ class FirewallEngine {
 
         // Resolve exact REST route path separately from query string (Section 1 Guidelines)
         $parsed_path = (string) (wp_parse_url($raw_uri, PHP_URL_PATH) ?? '');
-        $resolved_rest_route = '';
-        if (preg_match('#/wp-json(/[^?]+)#i', $parsed_path, $rm)) {
-            $resolved_rest_route = '/' . trim($rm[1], '/');
-        } elseif (isset($_GET['rest_route']) && is_string($_GET['rest_route'])) {
-            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Passive route resolution
-            $resolved_rest_route = '/' . trim(sanitize_text_field(wp_unslash($_GET['rest_route'])), '/');
-        }
+        $resolved_rest_route = self::resolve_normalized_rest_route($raw_uri);
 
         $exact_waf_config_write_routes = [
             '/webcare-pro-security/v1/settings',
@@ -2216,21 +2211,13 @@ class FirewallEngine {
         if (!empty($_POST) && is_array($_POST)) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
             $post_data = wp_unslash($_POST);
-            // Mask scalar password fields from generic regex false-positives unless containing explicit SQLi or null-byte exploits
-            foreach (['pwd', 'password', 'pass1', 'pass2', 'account_password'] as $pw_field) {
-                if (isset($post_data[$pw_field]) && is_string($post_data[$pw_field]) && strlen($post_data[$pw_field]) <= 128) {
-                    if (!preg_match('/(?:union\s+select|sleep\s*\(|benchmark\s*\(|\x00)/i', $post_data[$pw_field])) {
-                        unset($post_data[$pw_field]);
-                    }
-                }
-            }
             $params_to_check[] = rawurldecode(http_build_query($post_data, '', '&', PHP_QUERY_RFC3986));
         }
 
+        $cookie_str = '';
         // Inspect Cookies vector
         if (!empty($_COOKIE) && is_array($_COOKIE)) {
             $cookie_data = wp_unslash($_COOKIE);
-            $cookie_str = '';
             foreach ($cookie_data as $ck => $cv) {
                 if (is_string($cv)) {
                     $cookie_str .= ' ' . $ck . '=' . $cv;
@@ -2249,31 +2236,107 @@ class FirewallEngine {
             $params_to_check[] = rawurldecode($referer);
         }
 
-        if (in_array($request_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
-            // Read first 256KB and last 64KB so padding >256KB cannot bypass inspection
-            $raw_head = (string) @file_get_contents('php://input', false, null, 0, 262144);
-            if ($raw_head !== '') {
-                $normalized_body = wp_unslash($raw_head);
-                // Decode JSON \uXXXX escapes so REST JSON payloads cannot evade SQLi/XSS regexes
-                if (strpos($normalized_body, '\\u') !== false) {
-                    $normalized_body = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
-                        return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
-                    }, $normalized_body);
-                }
-                $params_to_check[] = $normalized_body;
+        $full_raw_body                  = '';
+        $raw_body_chunks_for_heuristics = [];
 
-                // REST API Batch & Method-Override Normalization (CVE-2026-63030 / CVE-2026-60137 chain defense)
-                $batch_sub_payloads = self::extract_rest_batch_payloads($raw_uri, $raw_head);
-                if (!empty($batch_sub_payloads)) {
-                    $params_to_check = array_merge($params_to_check, $batch_sub_payloads);
+        if (in_array($request_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            $content_type      = isset($_SERVER['CONTENT_TYPE']) ? sanitize_text_field(wp_unslash($_SERVER['CONTENT_TYPE'])) : '';
+            $is_multipart      = stripos($content_type, 'multipart/form-data') !== false;
+            $max_inspect_bytes = isset($settings['waf_max_inspected_body_bytes'])
+                ? max(262144, (int) $settings['waf_max_inspected_body_bytes'])
+                : 4194304; // 4 MB default full-stream inspection ceiling
+            $chunk_size        = 65536; // 64 KB chunks
+            $overlap_size      = 8192;  // 8 KB rolling overlap across chunk boundaries
+
+            $content_len = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
+            if (!$is_multipart && $content_len > $max_inspect_bytes) {
+                return [
+                    'id'          => 'WAF-BODY-INSPECTION-LIMIT-EXCEEDED',
+                    'name'        => 'Request Body Inspection Ceiling Enforced',
+                    'category'    => 'Protocol Defense',
+                    'description' => 'Non-multipart request body exceeds maximum safe deep-inspection size.',
+                    'payload'     => sprintf('Content-Length: %d bytes (limit: %d)', $content_len, $max_inspect_bytes),
+                ];
+            }
+
+            $bytes_read = 0;
+            $prev_tail  = '';
+            $exceeded   = false;
+
+            if (isset($GLOBALS['WEBCARE_TEST_RAW_INPUT']) && is_string($GLOBALS['WEBCARE_TEST_RAW_INPUT'])) {
+                $test_stream = $GLOBALS['WEBCARE_TEST_RAW_INPUT'];
+                $test_len    = strlen($test_stream);
+                $offset      = 0;
+                while ($offset < $test_len) {
+                    $chunk = substr($test_stream, $offset, $chunk_size);
+                    $offset += strlen($chunk);
+                    $bytes_read += strlen($chunk);
+                    if (!$is_multipart && $bytes_read > $max_inspect_bytes) {
+                        $exceeded = true;
+                        break;
+                    }
+                    $window = $prev_tail . $chunk;
+                    $norm_w = wp_unslash($window);
+                    if (strpos($norm_w, '\\u') !== false) {
+                        $norm_w = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
+                            return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
+                        }, $norm_w);
+                    }
+                    $params_to_check[]                = $norm_w;
+                    $raw_body_chunks_for_heuristics[] = $norm_w;
+                    if ($bytes_read <= 524288) {
+                        $full_raw_body .= $chunk;
+                    }
+                    $prev_tail = strlen($chunk) > $overlap_size ? substr($chunk, -$overlap_size) : $chunk;
+                }
+            } else {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Streaming raw request body from php://input stream
+                $in_fp = @fopen('php://input', 'rb');
+                if (is_resource($in_fp)) {
+                    while (!feof($in_fp)) {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Low-memory chunked streaming of raw HTTP input stream
+                        $chunk = (string) @fread($in_fp, $chunk_size);
+                        if ($chunk === '') {
+                            break;
+                        }
+                        $bytes_read += strlen($chunk);
+                        if (!$is_multipart && $bytes_read > $max_inspect_bytes) {
+                            $exceeded = true;
+                            break;
+                        }
+                        $window = $prev_tail . $chunk;
+                        $norm_w = wp_unslash($window);
+                        if (strpos($norm_w, '\\u') !== false) {
+                            $norm_w = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
+                                return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
+                            }, $norm_w);
+                        }
+                        $params_to_check[]                = $norm_w;
+                        $raw_body_chunks_for_heuristics[] = $norm_w;
+                        if ($bytes_read <= 524288) {
+                            $full_raw_body .= $chunk;
+                        }
+                        $prev_tail = strlen($chunk) > $overlap_size ? substr($chunk, -$overlap_size) : $chunk;
+                    }
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Close php://input stream
+                    @fclose($in_fp);
                 }
             }
 
-            $content_len = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
-            if ($content_len > 262144) {
-                $raw_tail = (string) @file_get_contents('php://input', false, null, max(0, $content_len - 65536), 65536);
-                if ($raw_tail !== '') {
-                    $params_to_check[] = wp_unslash($raw_tail);
+            if ($exceeded) {
+                return [
+                    'id'          => 'WAF-BODY-INSPECTION-LIMIT-EXCEEDED',
+                    'name'        => 'Request Body Inspection Ceiling Enforced',
+                    'category'    => 'Protocol Defense',
+                    'description' => 'Streamed request body exceeded maximum safe deep-inspection size.',
+                    'payload'     => sprintf('Streamed > %d bytes', $max_inspect_bytes),
+                ];
+            }
+
+            if ($full_raw_body !== '') {
+                $batch_sub_payloads = self::extract_rest_batch_payloads($raw_uri, $full_raw_body);
+                if (!empty($batch_sub_payloads)) {
+                    $params_to_check = array_merge($params_to_check, $batch_sub_payloads);
                 }
             }
         }
@@ -2295,31 +2358,60 @@ class FirewallEngine {
             }, $decoded_combined);
         }
 
-        // Schema-aware heuristic payload representation exclusively for XSS and AI-Prompt sentinels (Fix 1)
-        // Mandatory exploit signatures (SQLi, RCE, LFI, Object Injection, SSRF) always inspect 100% unredacted $combined_payload
+        // Build heuristic payload representation (used ONLY by XSS and AI-Prompt heuristic checks).
+        // Mandatory signatures (LFI, SQLi, RCE, Object Injection, Null-Byte, SSRF) ALWAYS inspect
+        // the 100% unredacted $combined_payload and $decoded_combined.
+        $has_password_field = false;
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        if (!empty($_POST) && is_array($_POST)) {
+            foreach (['pwd', 'password', 'pass1', 'pass2', 'account_password'] as $pw_k) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                if (isset($_POST[$pw_k])) {
+                    $has_password_field = true;
+                    break;
+                }
+            }
+        }
+
         $heuristic_combined = $combined_payload;
         $heuristic_decoded  = $decoded_combined;
 
-        if ($is_waf_config_write) {
-            $heuristic_post = !empty($_POST) && is_array($_POST)
-                ? self::redact_waf_config_expressions(wp_unslash($_POST), $resolved_rest_route)
-                : [];
-            $heuristic_body_str = '';
-            if (!empty($raw_head)) {
-                $h_json = json_decode(wp_unslash($raw_head), true);
-                if (is_array($h_json)) {
-                    $heuristic_body_str = (string) wp_json_encode(
-                        self::redact_waf_config_expressions($h_json, $resolved_rest_route)
-                    );
+        if ($is_waf_config_write || $has_password_field) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            $heuristic_post = !empty($_POST) && is_array($_POST) ? wp_unslash($_POST) : [];
+            if ($has_password_field) {
+                foreach (['pwd', 'password', 'pass1', 'pass2', 'account_password'] as $pw_field) {
+                    if (isset($heuristic_post[$pw_field]) && is_string($heuristic_post[$pw_field]) && strlen($heuristic_post[$pw_field]) <= 128) {
+                        unset($heuristic_post[$pw_field]);
+                    }
                 }
             }
-            $heuristic_combined = trim(implode(' ', array_filter([
-                $query_string,
-                !empty($heuristic_post) ? rawurldecode(http_build_query($heuristic_post, '', '&', PHP_QUERY_RFC3986)) : '',
-                $heuristic_body_str,
-                $user_agent,
-                $referer !== '' ? rawurldecode($referer) : '',
-            ])));
+            if ($is_waf_config_write && !empty($heuristic_post)) {
+                $heuristic_post = self::redact_waf_config_expressions($heuristic_post, $resolved_rest_route);
+            }
+
+            $heuristic_body_parts = $raw_body_chunks_for_heuristics;
+            if ($is_waf_config_write && $full_raw_body !== '') {
+                $h_json = json_decode(wp_unslash($full_raw_body), true);
+                if (is_array($h_json)) {
+                    $heuristic_body_parts = [
+                        (string) wp_json_encode(self::redact_waf_config_expressions($h_json, $resolved_rest_route)),
+                    ];
+                }
+            }
+
+            $heuristic_combined = trim(implode(' ', array_filter(array_merge(
+                [
+                    $query_string,
+                    !empty($_GET) && is_array($_GET) ? rawurldecode(http_build_query(wp_unslash($_GET), '', '&', PHP_QUERY_RFC3986)) : '',
+                    !empty($heuristic_post) ? rawurldecode(http_build_query($heuristic_post, '', '&', PHP_QUERY_RFC3986)) : '',
+                    $cookie_str !== '' ? rawurldecode($cookie_str) : '',
+                    $user_agent,
+                    $referer !== '' ? rawurldecode($referer) : '',
+                ],
+                $heuristic_body_parts
+            ))));
+
             $heuristic_decoded = str_replace('+', ' ', $heuristic_combined);
             for ($h_i = 0; $h_i < 2; $h_i++) {
                 $prev_h = $heuristic_decoded;
@@ -2327,6 +2419,11 @@ class FirewallEngine {
                 if ($heuristic_decoded === $prev_h) {
                     break;
                 }
+            }
+            if (strpos($heuristic_decoded, '\\u') !== false) {
+                $heuristic_decoded = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
+                    return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
+                }, $heuristic_decoded);
             }
         }
 
@@ -2402,7 +2499,7 @@ class FirewallEngine {
 
         // 3.5 PHP Object Injection (POP-chain gadgets) & Stream Wrapper Injection Shield
         if (!isset($settings['waf_block_object_injection']) || !empty($settings['waf_block_object_injection'])) {
-            $stream_and_pop_regex = '/(?:(?:^|[\s"\';,\[\]{}])(?:O|C):[+-]?\d+:"[^"]+":\d+:\{|(?:phar|expect|zip|glob|ogg|rar):\/\/|php:\/\/(?:filter|input|fd))/i';
+            $stream_and_pop_regex = '/(?:(?:^|[\s"\';,\[\]{}=])(?:O|C):[+-]?\d+:"[^"]+":\d+:\{|(?:phar|expect|zip|glob|ogg|rar):\/\/|php:\/\/(?:filter|input|fd))/i';
             if (preg_match($stream_and_pop_regex, $uri) || preg_match($stream_and_pop_regex, $combined_payload) || preg_match($stream_and_pop_regex, $decoded_combined)) {
                 return [
                     'id'          => 'WAF-OBJECT-STREAM-INJECTION',
@@ -9771,36 +9868,72 @@ class FirewallEngine {
      * @return array Data with top-level and container expression fields redacted.
      */
     public static function redact_waf_config_expressions(array $data, string $rest_route = ''): array {
-        $top_level_rule_keys = [
-            'conditions',
-            'wirefilter',
-            'expression',
-            'pattern',
-            'regex',
-            'waf_whitelisted_urls',
-            'waf_targeted_allowlist_rules',
-            'waf_allowed_host_aliases',
-        ];
+        $norm_route = '/' . trim(strtolower($rest_route), '/');
 
-        foreach ($top_level_rule_keys as $rk) {
-            if (array_key_exists($rk, $data)) {
+        // 1. Settings & Wizard routes: redact only allowlist pattern keys at root or inside settings/firewall_settings
+        $settings_routes = [
+            '/webcare-pro-security/v1/settings',
+            '/webcare-pro-security/v1/settings/import',
+            '/webcare-pro-security/v1/wizard/save',
+        ];
+        if (in_array($norm_route, $settings_routes, true)) {
+            $allowlist_keys = [
+                'waf_whitelisted_urls',
+                'waf_targeted_allowlist_rules',
+                'waf_allowed_host_aliases',
+            ];
+            foreach ($allowlist_keys as $ak) {
+                unset($data[$ak]);
+            }
+            foreach (['settings', 'firewall_settings', 'advanced_settings'] as $container) {
+                if (isset($data[$container]) && is_array($data[$container])) {
+                    foreach ($allowlist_keys as $ak) {
+                        unset($data[$container][$ak]);
+                    }
+                }
+            }
+            return $data;
+        }
+
+        // 2. Modular WAF custom rule & parser routes: redact only rule expression fields at root or inside rule/rules
+        $rule_routes = [
+            '/webcare-pro-security/v1/modular-waf/rule/custom',
+            '/webcare-pro-security/v1/modular-waf/rule/parse-wirefilter',
+            '/webcare-pro-security/v1/modular-waf/rule/parse-ai',
+            '/webcare-pro-security/v1/modular-waf/rule/ai-generate',
+            '/webcare-pro-security/v1/modular-waf/rule/simulate',
+        ];
+        if (in_array($norm_route, $rule_routes, true)) {
+            $rule_expr_keys = [
+                'conditions',
+                'wirefilter',
+                'expression',
+                'pattern',
+                'regex',
+                'target_uri',
+                'target_value',
+            ];
+            foreach ($rule_expr_keys as $rk) {
                 unset($data[$rk]);
             }
-        }
-
-        // Known nested containers used by /settings, /wizard/save, and /modular-waf/rule/custom
-        foreach (['settings', 'firewall_settings', 'rule', 'rules'] as $container_key) {
-            if (isset($data[$container_key]) && is_array($data[$container_key])) {
-                foreach ($top_level_rule_keys as $rk) {
-                    unset($data[$container_key][$rk]);
-                }
-                // For /modular-waf/rule/custom condition groups: conditions[*].rules[*].value
-                if ($container_key === 'rule' && isset($data['rule']['conditions'])) {
-                    unset($data['rule']['conditions']);
+            if (isset($data['rule']) && is_array($data['rule'])) {
+                foreach ($rule_expr_keys as $rk) {
+                    unset($data['rule'][$rk]);
                 }
             }
+            if (isset($data['rules']) && is_array($data['rules'])) {
+                foreach ($data['rules'] as $idx => $r_item) {
+                    if (is_array($r_item)) {
+                        foreach ($rule_expr_keys as $rk) {
+                            unset($data['rules'][$idx][$rk]);
+                        }
+                    }
+                }
+            }
+            return $data;
         }
 
+        // Any other route: never redact anything
         return $data;
     }
 
