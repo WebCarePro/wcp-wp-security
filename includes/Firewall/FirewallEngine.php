@@ -1020,22 +1020,23 @@ class FirewallEngine {
 
         $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
 
-        // Check Allowlisted URLs / URI paths (bypasses all subsequent firewall rules)
+        $url_whitelisted = false;
+        // Check Allowlisted URLs / URI paths (bypasses operational heuristics, but not explicit administrator block rules or mandatory signatures)
         if (!empty($settings['waf_whitelisted_urls']) && self::is_url_whitelisted($request_uri, $settings['waf_whitelisted_urls'])) {
-            return;
+            $url_whitelisted = true;
         }
 
         // Check Targeted User-Agent, Endpoint & IP Allowlist Rules (Zero-Trust granular bypass)
         $targeted_rules_raw = $settings['waf_targeted_allowlist_rules'] ?? '[]';
         $targeted_rules = is_array($targeted_rules_raw) ? $targeted_rules_raw : json_decode((string) $targeted_rules_raw, true);
-        if (!empty($targeted_rules) && is_array($targeted_rules)) {
+        if (!$url_whitelisted && !empty($targeted_rules) && is_array($targeted_rules)) {
             $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
             $http_method = isset($_SERVER['REQUEST_METHOD']) ? sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])) : 'GET';
             $matched_rule = self::match_targeted_allowlist_rule($request_uri, $user_agent, $client_ip, $http_method, $targeted_rules);
             if ($matched_rule !== null) {
                 // Log granular forensic telemetry to WAF logs
                 self::log_targeted_allowlist_hit($matched_rule, $client_ip, $request_uri, $user_agent, $http_method);
-                return; // Granted safe bypass
+                $url_whitelisted = true;
             }
         }
 
@@ -1063,11 +1064,7 @@ class FirewallEngine {
             if ($modular_violation !== null) {
                 $mod_action = (string) ($modular_violation['action_type'] ?? '');
                 if ($mod_action === 'allow') {
-                    if (empty($modular_violation['exempt_rules'])) {
-                        // Custom visual allow rule matched: skip subsequent operational/rate-limiting/bot modules,
-                        // but fall through to enforce critical exploit signatures in evaluate_rules()
-                        $custom_allow_matched = true;
-                    }
+                    $custom_allow_matched = true;
                 } elseif ($mod_action === 'challenge_pow' && !empty($modular_violation['blocked']) && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
                     $ua_raw = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
                     if (!\WebCareProScanner\Firewall\BotReconDefense::has_valid_clearance_cookie($client_ip, $ua_raw)) {
@@ -1105,18 +1102,24 @@ class FirewallEngine {
             }
         }
 
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer') && \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::did_custom_allow_match()) {
+            $custom_allow_matched = true;
+        }
+
+        $skip_operational_heuristics = ($url_whitelisted || $custom_allow_matched);
+
         // Differential Threat Score & Behavioral Pre-Flight Sentinel (CAF Phase 3)
-        if (!$custom_allow_matched && class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+        if (!$skip_operational_heuristics && class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
             \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::inspect_client_threat($client_ip);
         }
 
         // Adaptive Rate Limiter & Token-Bucket Throttling
-        if (!$custom_allow_matched && class_exists('\\WebCareProScanner\\Firewall\\AdaptiveRateLimiter')) {
+        if (!$skip_operational_heuristics && class_exists('\\WebCareProScanner\\Firewall\\AdaptiveRateLimiter')) {
             \WebCareProScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
         }
 
         // WebCrypto Proof-of-Work (PoW) Enforced Suspicious IP Sentinel
-        if (!$custom_allow_matched) {
+        if (!$skip_operational_heuristics) {
             $pow_ips = get_option('webcare_pow_enforced_ips', []);
             if (is_array($pow_ips) && isset($pow_ips[$client_ip])) {
                 $pow_exp = (int) ($pow_ips[$client_ip]['expires_at'] ?? 0);
@@ -1130,7 +1133,7 @@ class FirewallEngine {
         }
 
         // HTTP/2 & HTTP/3 Pseudo-Header and Client-Hint Anomaly Sentinel (CAF Phase 3)
-        if (!$custom_allow_matched && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+        if (!$skip_operational_heuristics && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
             $h2_anomaly = \WebCareProScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
             if ($h2_anomaly !== null) {
                 // Record threat score increment for header anomaly (+15)
@@ -1156,16 +1159,17 @@ class FirewallEngine {
 
         // Pluggable Module SDK & 2026-2027 Next-Gen WAF Sentinels Runtime Pipeline
         if (
-            class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')
+            !$skip_operational_heuristics
+            && class_exists('\\WebCareProScanner\\Core\\ModuleRegistry')
             && class_exists('\\WebCareProScanner\\Contracts\\RequestContext')
         ) {
             $req_ctx = \WebCareProScanner\Contracts\RequestContext::from_globals();
             $verdict = \WebCareProScanner\Core\ModuleRegistry::evaluate_runtime_waf($req_ctx, $settings);
             if ($verdict !== null) {
                 if ($verdict->action === 'allow') {
-                    return;
-                }
-                if ($verdict->action === 'challenge_pow' && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+                    $custom_allow_matched = true;
+                    $skip_operational_heuristics = true;
+                } elseif ($verdict->action === 'challenge_pow' && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
                     if (!\WebCareProScanner\Firewall\BotReconDefense::has_valid_clearance_cookie($client_ip, $req_ctx->userAgent)) {
                         self::log_incident([
                             'id'          => $verdict->ruleId,
@@ -1262,7 +1266,7 @@ class FirewallEngine {
 
         // Context-Adaptive Firewall (CAF): Dormant Attack Surface Lockdown
         $lock_dormant = (bool) get_option('webcare_caf_lock_dormant_surface', true);
-        if ($lock_dormant) {
+        if (!$skip_operational_heuristics && $lock_dormant) {
             $raw_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
             $decoded_check_uri = rawurldecode($raw_uri);
 
@@ -1394,7 +1398,7 @@ class FirewallEngine {
         }
 
         // Rule #33: admin-ajax.php Unauthenticated Request Burst Rate-Limiter
-        if (!empty($settings['waf_limit_admin_ajax'])) {
+        if (!$skip_operational_heuristics && !empty($settings['waf_limit_admin_ajax'])) {
             $clean_path = strtolower(wp_parse_url($request_uri, PHP_URL_PATH) ?: $request_uri);
             if (strpos($clean_path, 'admin-ajax.php') !== false) {
                 $is_logged_in = is_user_logged_in() || self::is_authenticated_administrator() || self::is_authenticated_editor_or_builder();
@@ -1461,7 +1465,9 @@ class FirewallEngine {
         }
 
         // Rule #36: Guest admin-ajax.php & admin-post.php Action Matrix Guard
-        self::check_guest_ajax_policy($request_uri, $settings, $client_ip);
+        if (!$skip_operational_heuristics) {
+            self::check_guest_ajax_policy($request_uri, $settings, $client_ip);
+        }
 
         // Check XML-RPC Disabled Guard early at plugins_loaded:0
         if (!empty($settings['waf_disable_xmlrpc']) && (strpos($request_uri, 'xmlrpc.php') !== false || (isset($_SERVER['SCRIPT_NAME']) && strpos(sanitize_text_field(wp_unslash($_SERVER['SCRIPT_NAME'])), 'xmlrpc.php') !== false))) {
@@ -1657,7 +1663,7 @@ class FirewallEngine {
         }
 
         // Block IPs who send POST requests with blank User-Agent and Referer
-        if (!empty($settings['waf_block_empty_post_ua_referer'])) {
+        if (!$skip_operational_heuristics && !empty($settings['waf_block_empty_post_ua_referer'])) {
             $is_post = (isset($_SERVER['REQUEST_METHOD']) && strtoupper(sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD']))) === 'POST');
             if ($is_post) {
                 // E-Commerce & Membership Safe Mode: Server-to-server payment gateway webhooks
@@ -2002,7 +2008,7 @@ class FirewallEngine {
         // Check active temporary 404 Scanner Lockout
         $lockout_transient = 'webcareproscan_404_lock_' . md5($client_ip);
         $lockout_data = get_transient($lockout_transient);
-        if ($lockout_data !== false) {
+        if (!$skip_operational_heuristics && $lockout_data !== false) {
             $rule_triggered = [
                 'id'          => 'RATE-LIMIT-404-LOCKOUT',
                 'name'        => '404 Scanner Rate Limit Exceeded',
@@ -2045,7 +2051,7 @@ class FirewallEngine {
         }
 
         // Check Bot Recon Defense & AI Scraper Shield
-        if (!$custom_allow_matched) {
+        if (!$skip_operational_heuristics) {
             $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
             $bot_rule = BotReconDefense::inspect_bot($client_ip, $user_agent, $settings);
             if ($bot_rule !== null) {
@@ -7047,7 +7053,9 @@ class FirewallEngine {
         // Honor ModularFirewallSynthesizer runtime exempt rule IDs (WCP-14)
         if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
             $modular_exempt_ids = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_runtime_exempt_rule_ids();
-            if (!empty($modular_exempt_ids) && !empty($rule['id']) && in_array((string) $rule['id'], $modular_exempt_ids, true)) {
+            $cand_id = strtoupper((string) ($rule['id'] ?? ''));
+            $is_exemptible_rule = (bool) preg_match('/^(?:MOD-(?:AJAX|REST|CVE|CUSTOM|UPLOAD|EGRESS)-[A-Z0-9_\-]+|BOT-[A-Z0-9_\-]+|RATE-[A-Z0-9_\-]+)$/', $cand_id);
+            if ($is_exemptible_rule && !empty($modular_exempt_ids) && in_array($cand_id, $modular_exempt_ids, true)) {
                 return;
             }
         }

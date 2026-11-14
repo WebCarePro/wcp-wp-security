@@ -889,11 +889,11 @@ class MicroWafCompiler {
         $out .= "                }\n";
         $out .= "        }\n\n";
 
-        // 5. Modular Intelligence Firewall Pre-Boot Lockdown (Custom rules already evaluated & allow-exemptions recorded above)
-        // Whitelisted URLs bypass modular heuristics while preserving mandatory exploit signatures (Finding 1.6)
+        // 5. Modular Intelligence Firewall Pre-Boot Lockdown
         $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
-        $out .= "        if (!\$mod_rescue_paused && !\$url_whitelisted && !\$vis_allow_all_custom) {\n";
-        $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked']) && !in_array('MOD-ABSPATH-LOCKED', \$vis_exempt_ids, true)) {\n";
+        $out .= "        if (!\$mod_rescue_paused) {\n";
+        $out .= "            // 5A. Direct script execution lockdown (Unconditionally enforced, non-bypassable by URL allowlists or custom exemptions)\n";
+        $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked'])) {\n";
         $out .= "                \$clean_script_uri = ltrim(\$mod_clean_uri, '/\\\\');\n";
         $out .= "                foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";
         $out .= "                    if (str_ends_with(\$clean_script_uri, \$b_script)) {\n";
@@ -901,12 +901,17 @@ class MicroWafCompiler {
         $out .= "                    }\n";
         $out .= "                }\n";
         $out .= "            }\n";
+        $out .= "            // 5B. Custom rules evaluation: explicit immediate-block rules run even on allowlisted URLs\n";
         $out .= "            if (!\$mod_has_login_cookie && !empty(\$mod_rules['custom_rules_enforced'])) {\n";
         $out .= "                \$mod_payload_rx = '/(?:\\\\bunion\\\\s+all\\\\s+select\\\\b|\\\\bselect\\\\b.{1,40}\\\\bfrom\\\\b.{1,40}\\\\bwp_users\\\\b|sleep\\\\s*\\\\(\\\\s*\\\\d+\\\\s*\\\\)|benchmark\\\\s*\\\\(|<script\\\\b|javascript:|wp_capabilities|(?:(?:\"|\'|\\\\b)(?:role|default_role|user_role|capabilities)\\\\b[^a-z0-9_]{0,20}\\\\badministrator\\\\b)|s:13:\"administrator\")/i';\n";
         $out .= "                \$trusted_custom = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
         $out .= "                foreach (\$mod_rules['custom_rules_enforced'] as \$c_rule) {\n";
         $out .= "                    \$c_id = (string) (\$c_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
         $out .= "                    if (in_array(\$c_id, \$trusted_custom, true) || in_array(\$c_id, \$vis_exempt_ids, true)) {\n";
+        $out .= "                        continue;\n";
+        $out .= "                    }\n";
+        $out .= "                    \$is_immediate_block = (!empty(\$c_rule['immediate_block']) || ((int) (\$c_rule['rate_limit'] ?? 0) <= 0) || !empty(\$c_rule['block_uploads']));\n";
+        $out .= "                    if (!\$is_immediate_block && (\$url_whitelisted || \$vis_allow_all_custom)) {\n";
         $out .= "                        continue;\n";
         $out .= "                    }\n";
         $out .= "                    \$c_uri = strtolower(trim((string) (\$c_rule['target_uri'] ?? '')));\n";
@@ -948,6 +953,9 @@ class MicroWafCompiler {
         $out .= "                    }\n";
         $out .= "                }\n";
         $out .= "            }\n";
+        $out .= "        }\n";
+        $out .= "        // 5C. Modular Heuristics (Gated by URL allowlists and custom allow rules)\n";
+        $out .= "        if (!\$mod_rescue_paused && !\$url_whitelisted && !\$vis_allow_all_custom) {\n";
         $out .= "            if (!\$mod_has_login_cookie && !empty(\$mod_rules['ajax_actions_enforced']) && strpos(\$mod_clean_uri, 'admin-ajax.php') !== false) {\n";
         $out .= "                \$ajax_act = isset(\$_REQUEST['action']) ? strtolower(trim((string) \$_REQUEST['action'])) : '';\n";
         $out .= "                \$trusted_ajax = is_array(\$mod_trusted['ajax_actions'] ?? null) ? \$mod_trusted['ajax_actions'] : [];\n";
