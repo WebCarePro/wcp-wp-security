@@ -1708,44 +1708,10 @@ class FirewallEngine {
 
         // Rule 18 / Smart Rule #53: Sensitive Log, .env.* & Byte-Range Exfiltration Instant Ban
         if (!empty($settings['waf_block_sensitive_file_probes'])) {
-            // Multi-pass URL decode to catch obfuscated probes (e.g. /%2eenv, /%252eenv, /%2egit)
-            $decoded_check_path = $request_uri;
-            for ($d_i = 0; $d_i < 3; $d_i++) {
-                $prev_path = $decoded_check_path;
-                $decoded_check_path = rawurldecode($decoded_check_path);
-                if ($decoded_check_path === $prev_path) {
-                    break;
-                }
-            }
-            $clean_path = strtolower(wp_parse_url($decoded_check_path, PHP_URL_PATH) ?: $decoded_check_path);
-            $clean_path = str_replace('\\', '/', $clean_path);
-            $sensitive_patterns = [
-                '/(?:\/|^)(?:\.env(?:\.[a-z0-9_-]+)?|\.git\/(?:config|HEAD|index|logs(?:\/.*)?)|wp-config\.(?:php\.)?(?:bak|old|save|swp|txt|orig|dist|~)|debug\.log|php_errorlog|error_log|wp-content\/uploads\/wc-logs(?:\/.*)?|auth\.json|docker-compose\.ya?ml|id_rsa(?:\.pub)?)(?:$|\?)/i',
-                '/\.(env|git|svn|htaccess|user\.ini)(\/|$)/i',
-                '/\.(sql|sql\.gz|tar\.gz|bak)$/i',
-                '/(backup|dump|db_backup|wp-config\.php[~_\.bak])/i',
-                '/(phpinfo\.php|info\.php)$/i',
-            ];
-            foreach ($sensitive_patterns as $spat) {
-                if (preg_match($spat, $clean_path)) {
-                    $range_hdr = isset($_SERVER['HTTP_RANGE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_RANGE'])) : '';
-                    $rule_triggered = [
-                        'id'          => 'WAF-SENSITIVE-FILE-PROBE',
-                        'name'        => 'Sensitive Log & Configuration File Exfiltration Probe (Rule #53)',
-                        'category'    => 'File Reconnaissance',
-                        'description' => sprintf(
-                            /* translators: %s: Probed sensitive file path */
-                            esc_html__('Unauthorized probe targeting sensitive system configuration, log file, or database backup (%s).', 'webcare-pro-security'),
-                            esc_html($clean_path)
-                        ),
-                        'match_type'  => 'Path Reconnaissance',
-                        'match_value' => $clean_path,
-                        'payload'     => "Path: {$clean_path}" . ($range_hdr !== '' ? " Range: {$range_hdr}" : '') . " IP: {$client_ip}",
-                    ];
-
-                    self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    break;
-                }
+            $sensitive_violation = self::check_sensitive_file_probe($request_uri, $settings, $skip_operational_heuristics);
+            if ($sensitive_violation !== null) {
+                $sensitive_violation['payload'] .= " IP: {$client_ip}";
+                self::handle_rule_violation($sensitive_violation, $settings, $client_ip, 403);
             }
         }
 
@@ -3190,6 +3156,10 @@ class FirewallEngine {
      */
     public static function is_high_risk_recon_probe(string $uri): bool {
         $path = strtolower(wp_parse_url($uri, PHP_URL_PATH) ?: $uri);
+        $norm_route = self::resolve_normalized_rest_route($uri);
+        if (str_starts_with($path, '/wp-json/webcare-pro-security/') || str_starts_with($norm_route, '/webcare-pro-security/')) {
+            return false;
+        }
 
         $high_risk_patterns = [
             '/\.env($|\.)/i',
@@ -3211,6 +3181,70 @@ class FirewallEngine {
         }
 
         return false;
+    }
+
+    /**
+     * Inspect URI for sensitive system configuration, log file, or database backup reconnaissance probes (Rule #53).
+     *
+     * @param string $uri
+     * @param array  $settings
+     * @param bool   $skip_heuristics
+     * @return array|null
+     */
+    public static function check_sensitive_file_probe(string $uri, array $settings, bool $skip_heuristics = false): ?array {
+        if ($skip_heuristics || empty($settings['waf_block_sensitive_file_probes'])) {
+            return null;
+        }
+
+        // Multi-pass URL decode to catch obfuscated probes (e.g. /%2eenv, /%252eenv, /%2egit)
+        $decoded_check_path = $uri;
+        for ($d_i = 0; $d_i < 3; $d_i++) {
+            $prev_path = $decoded_check_path;
+            $decoded_check_path = rawurldecode($decoded_check_path);
+            if ($decoded_check_path === $prev_path) {
+                break;
+            }
+        }
+        $clean_path = strtolower(wp_parse_url($decoded_check_path, PHP_URL_PATH) ?: $decoded_check_path);
+        $clean_path = str_replace('\\', '/', $clean_path);
+
+        $norm_rest_route = self::resolve_normalized_rest_route($decoded_check_path);
+        $is_plugin_api   = str_starts_with($clean_path, '/wp-json/webcare-pro-security/') || str_starts_with($norm_rest_route, '/webcare-pro-security/');
+        $is_legit_rest   = (str_starts_with($clean_path, '/wp-json/') || !empty($norm_rest_route)) && !str_contains($clean_path, '..');
+
+        if ($is_plugin_api || $is_legit_rest) {
+            return null;
+        }
+
+        $sensitive_patterns = [
+            '/(?:\/|^)(?:\.env(?:\.[a-z0-9_-]+)?|\.git\/(?:config|HEAD|index|logs(?:\/.*)?)|debug\.log|php_errorlog|error_log|wp-content\/uploads\/wc-logs(?:\/.*)?|auth\.json|docker-compose\.ya?ml|id_rsa(?:\.pub)?)(?:$|\?)/i',
+            '/\.(env|git|svn|htaccess|user\.ini)(\/|$)/i',
+            '/\.(sql|sql\.gz|tar\.gz|bak)$/i',
+            '/(?:\/|^)[a-z0-9_.-]*(?:backup|dump|db_backup|database)[a-z0-9_.-]*\.(?:sql(?:\.gz)?|tar(?:\.gz)?|tgz|zip|gz|bz2|7z|rar|bak|old|orig|swp)(?:$|\?)/i',
+            '/(?:\/|^)wp-config\.php(?:[~._-].*|\.(?:bak|old|save|swp|dist|inc|orig|txt))(?:$|\?)/i',
+            '/(?:\/|^)(?:phpinfo|info|test|php_info)\.php(?:$|\?)/i',
+        ];
+
+        foreach ($sensitive_patterns as $spat) {
+            if (preg_match($spat, $clean_path)) {
+                $range_hdr = isset($_SERVER['HTTP_RANGE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_RANGE'])) : '';
+                return [
+                    'id'          => 'WAF-SENSITIVE-FILE-PROBE',
+                    'name'        => 'Sensitive Log & Configuration File Exfiltration Probe (Rule #53)',
+                    'category'    => 'File Reconnaissance',
+                    'description' => sprintf(
+                        /* translators: %s: Probed sensitive file path */
+                        esc_html__('Unauthorized probe targeting sensitive system configuration, log file, or database backup (%s).', 'webcare-pro-security'),
+                        esc_html($clean_path)
+                    ),
+                    'match_type'  => 'Path Reconnaissance',
+                    'match_value' => $clean_path,
+                    'payload'     => "Path: {$clean_path}" . ($range_hdr !== '' ? " Range: {$range_hdr}" : ''),
+                ];
+            }
+        }
+
+        return null;
     }
 
     /**

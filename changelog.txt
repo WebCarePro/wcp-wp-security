@@ -1,5 +1,12 @@
 ﻿v:2.15.0 - 2026-11-15
 - Zero-Gap Fail-Closed Streaming, Multipart Resource Ceilings, SVGZ Decompression Bomb Defense, Full Upload Integrity & Phar Signature Parity:
+  * Sensitive File & Backup Exfiltration Probe Precision & Admin Route Immunity (Rule #53):
+    - Eliminated false-positive blocks and self-bans when accessing plugin internal REST API routes (/wp-json/webcare-pro-security/v1/backup/active, /backup/create, /backup/list, /backup/download, etc.).
+    - Extracted check_sensitive_file_probe() and anchored sensitive backup/dump patterns to specific archive/database extensions (.(sql|tar|gz|zip|bz2|7z|rar|bak|old|orig|swp)), eliminating false-positive matches on standard content URLs, post slugs, or products containing "backup" or "dump" in their slug.
+    - Anchored phpinfo and script detection patterns to file boundaries (/(?:\/|^)(?:phpinfo|info|test|php_info)\.php(?:$|\?)/i).
+    - Integrated $skip_operational_heuristics into Rule 18 execution, ensuring authenticated administrators, whitelisted origins, and verified page builders bypass static file reconnaissance inspection.
+    - Added early exemption in is_high_risk_recon_probe() for /wp-json/webcare-pro-security/ endpoints.
+    - Hardened handle_rule_violation() to protect authenticated administrator sessions (is_authenticated_administrator()) from non-critical rule blocks and self-lockouts even if their dynamic IP address has not yet been manually saved to waf_whitelisted_ips.
   * SVGZ Decompression Bomb Defense & Resource Safety Policy (P1 & P2):
     - Replaced unbounded gzdecode() with bounded decompression enforcing a strict maximum decompressed length ($max_decompressed_bytes, 4 MB) as the primary resource-safety mechanism preventing memory exhaustion.
     - Failed closed (WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR) whenever decompression fails, is corrupted, or exceeds the 4 MB ceiling, eliminating worker memory exhaustion and zip-bomb denial of service.
