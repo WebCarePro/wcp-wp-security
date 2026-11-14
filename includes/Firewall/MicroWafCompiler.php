@@ -705,16 +705,20 @@ class MicroWafCompiler {
         $out .= "            // Rule-Precedence Model (Block-overrides-Allow):\n";
         $out .= "            // Partition rules so explicit administrator Block rules execute ahead of Allow rules,\n";
         $out .= "            // ensuring Allow rules can never suppress or bypass subsequent Block rules.\n";
+        $out .= "            \$v_block_ban_rules = [];\n";
         $out .= "            \$v_block_rules = [];\n";
         $out .= "            \$v_allow_rules = [];\n";
         $out .= "            foreach (\$mod_rules['visual_rules_enforced'] as \$v_r) {\n";
         $out .= "                \$v_act_norm = strtolower(trim((string) (\$v_r['action_type'] ?? 'block')));\n";
         $out .= "                if (\$v_act_norm === 'allow') {\n";
         $out .= "                    \$v_allow_rules[] = \$v_r;\n";
+        $out .= "                } elseif (\$v_act_norm === 'block_and_ban' || !empty(\$v_r['sync_cloudflare'])) {\n";
+        $out .= "                    \$v_block_ban_rules[] = \$v_r;\n";
         $out .= "                } else {\n";
         $out .= "                    \$v_block_rules[] = \$v_r;\n";
         $out .= "                }\n";
         $out .= "            }\n";
+        $out .= "            \$v_block_rules = array_merge(\$v_block_ban_rules, \$v_block_rules);\n";
         $out .= "            \$v_sorted_rules = array_merge(\$v_block_rules, \$v_allow_rules);\n";
         $out .= "            foreach (\$v_sorted_rules as \$v_rule) {\n";
         $out .= "                \$v_id = (string) (\$v_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
@@ -891,16 +895,16 @@ class MicroWafCompiler {
 
         // 5. Modular Intelligence Firewall Pre-Boot Lockdown
         $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
-        $out .= "        if (!\$mod_rescue_paused) {\n";
-        $out .= "            // 5A. Direct script execution lockdown (Unconditionally enforced, non-bypassable by URL allowlists or custom exemptions)\n";
-        $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked'])) {\n";
-        $out .= "                \$clean_script_uri = ltrim(\$mod_clean_uri, '/\\\\');\n";
-        $out .= "                foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";
-        $out .= "                    if (str_ends_with(\$clean_script_uri, \$b_script)) {\n";
-        $out .= "                        webcare_micro_waf_block(\$ip, 'MOD-ABSPATH-LOCKED', 'Direct HTTP execution of standalone script prohibited by Modular WAF', \$fail2ban_log);\n";
-        $out .= "                    }\n";
+        $out .= "        // 5A. Direct script execution lockdown (Unconditionally enforced on 100% of requests, even during rescue pause)\n";
+        $out .= "        if (!empty(\$mod_rules['direct_scripts_blocked'])) {\n";
+        $out .= "            \$clean_script_uri = ltrim(\$mod_clean_uri, '/\\\\');\n";
+        $out .= "            foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";
+        $out .= "                if (str_ends_with(\$clean_script_uri, \$b_script)) {\n";
+        $out .= "                    webcare_micro_waf_block(\$ip, 'MOD-ABSPATH-LOCKED', 'Direct HTTP execution of standalone script prohibited by Modular WAF', \$fail2ban_log);\n";
         $out .= "                }\n";
         $out .= "            }\n";
+        $out .= "        }\n";
+        $out .= "        if (!\$mod_rescue_paused) {\n";
         $out .= "            // 5B. Custom rules evaluation: explicit immediate-block rules run even on allowlisted URLs\n";
         $out .= "            if (!\$mod_has_login_cookie && !empty(\$mod_rules['custom_rules_enforced'])) {\n";
         $out .= "                \$mod_payload_rx = '/(?:\\\\bunion\\\\s+all\\\\s+select\\\\b|\\\\bselect\\\\b.{1,40}\\\\bfrom\\\\b.{1,40}\\\\bwp_users\\\\b|sleep\\\\s*\\\\(\\\\s*\\\\d+\\\\s*\\\\)|benchmark\\\\s*\\\\(|<script\\\\b|javascript:|wp_capabilities|(?:(?:\"|\'|\\\\b)(?:role|default_role|user_role|capabilities)\\\\b[^a-z0-9_]{0,20}\\\\badministrator\\\\b)|s:13:\"administrator\")/i';\n";

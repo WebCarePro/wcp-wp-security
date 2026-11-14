@@ -1,4 +1,19 @@
 ﻿v:2.14.0 - 2026-11-14
+- Two-Tier Privilege Architecture, Fail-Closed Evaluator & Action Ranking Hardening (Review Findings):
+  * Two-Tier Privilege Separation for Authenticated Administrators & Page Builders (Finding 1):
+    - Removed early pipeline and evaluate_rules() returns for authenticated administrators and page builders.
+    - Zero-tolerance mandatory exploit protections (SQLi, RCE, LFI, PHP Object Injection, executable uploads, and sensitive probes) execute unconditionally across 100% of requests, even for authenticated administrators in wp-admin or visual page builders (Elementor/Gutenberg/Divi).
+    - Privileged administrative operations are scoped exclusively from velocity/rate-limiting and formatting heuristic checks (XSS HTML/SVG/script tags during post saving), completely preventing compromised admin session or CSRF exploitation while avoiding false positives during legitimate layout editing.
+  * Fail-Closed Exception Handling in Runtime Rule Evaluation (Finding 2):
+    - Hardened ModularFirewallSynthesizer::evaluate_runtime_modular_rules() to enforce strict fail-closed safety upon condition evaluation exceptions.
+    - When condition evaluation on an enforcement rule (block or block_and_ban) encounters an unexpected exception, it logs a bounded diagnostic and safely enforces a block verdict.
+    - For Allow rules, an evaluation exception strictly sets matched=false, guaranteeing that an evaluation failure can never grant permission.
+  * Strict Priority Ranking: Block-and-Ban Dominance (Finding 3):
+    - Partitioned enforcement rules into ranked priority buckets (block_and_ban: 4 > block: 3 > challenge_pow: 2 > rate_limit: 1 > monitor: 0), preserving relative order within each rank.
+    - Updated runtime and pre-boot evaluators so a matching block_and_ban rule always takes precedence over a matching block rule regardless of definition order, ensuring Cloudflare and system-level IP bans are reliably queued.
+  * Unconditional Direct-Script Protection during Rescue Mode (Finding 4):
+    - Decoupled direct_scripts_blocked (MOD-ABSPATH-LOCKED) in MicroWafCompiler.php and ModularFirewallSynthesizer.php from the modular rescue-pause condition.
+    - Direct HTTP execution of standalone scripts remains unconditionally blocked on 100% of requests even when Rescue Mode is active.
 - Comprehensive Block-Overrides-Allow Architecture & Path Normalization Parity:
   * Strict Block-Overrides-Allow Precedence across Pre-Boot & Runtime:
     - Partitioned visual and custom modular rules into explicit priority tiers ($v_block_rules ahead of $v_allow_rules in pre-boot; $block_rules, $challenge_rules, $ratelimit_rules, $monitor_rules, and $allow_rules in runtime).

@@ -1042,17 +1042,20 @@ class FirewallEngine {
 
         // Safe Bypass for Verified Authenticated Administrators and Page Builder Sessions
         // (Prevents false-positive blocks when managing comments, posts, plugins, or editing pages via Elementor/Divi/Gutenberg)
+        // Two-Tier Privilege Architecture:
+        // Authenticated administrators performing backend actions and verified page-builder sessions
+        // bypass operational rate-limiting, velocity tracking, and format heuristics, but NEVER bypass
+        // mandatory exploit signatures (SQLi, RCE, LFI, polyglot uploads) or explicit administrator block rules.
+        $is_admin_operation   = false;
+        $is_builder_operation = false;
         // Red Team Drill Exception: Never bypass when drill token is present
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive inspection of drill token for red team simulation bypass
         $is_drill_request = !empty($_GET['webcare_drill_token']) || !empty($_POST['webcare_drill_token']) || !empty($_SERVER['HTTP_X_WEBCARE_DRILL_TOKEN']);
         if (!$is_drill_request) {
             if (self::is_authenticated_administrator()) {
-                $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/webcare-pro-security/') !== false);
-                if ($is_admin_path) {
-                    return;
-                }
-            } elseif (self::is_verified_editor_builder_request($request_uri)) {
-                return;
+                $is_admin_operation = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/webcare-pro-security/') !== false);
+            } elseif (self::is_verified_editor_builder_request($request_uri) || self::is_authenticated_editor_or_builder()) {
+                $is_builder_operation = true;
             }
         }
 
@@ -1106,7 +1109,7 @@ class FirewallEngine {
             $custom_allow_matched = true;
         }
 
-        $skip_operational_heuristics = ($url_whitelisted || $custom_allow_matched);
+        $skip_operational_heuristics = ($url_whitelisted || $custom_allow_matched || $is_admin_operation || $is_builder_operation);
 
         // Differential Threat Score & Behavioral Pre-Flight Sentinel (CAF Phase 3)
         if (!$skip_operational_heuristics && class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
@@ -2118,19 +2121,16 @@ class FirewallEngine {
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $referer = isset($_SERVER['HTTP_REFERER']) ? (string) wp_unslash($_SERVER['HTTP_REFERER']) : '';
 
-        // Authenticated administrators performing back-end actions in wp-admin or via authenticated WebCare REST API are exempt from payload heuristic blocks
-        // (Ensures an administrator browsing public frontend pages is STILL fully inspected and protected)
-        $is_admin_backend = is_admin() || strpos($raw_uri, '/wp-admin/') !== false;
-        $is_webcare_rest_api  = (strpos($raw_uri, '/wp-json/webcare-pro-security/') !== false) || (defined('REST_REQUEST') && REST_REQUEST && strpos($raw_uri, 'webcare-pro-security') !== false);
-        if (self::is_authenticated_administrator() && ($is_admin_backend || $is_webcare_rest_api)) {
-            return null;
-        }
-
-        // Authenticated Page Builder Smart Pass (Elementor, Divi, Gutenberg, Bricks, Beaver Builder)
-        // Verified users with 'edit_posts' saving layouts via builder AJAX or REST endpoints are exempt from false-positive XSS/SQLi payload drops
-        if (self::is_authenticated_editor_or_builder()) {
-            return null;
-        }
+        // Two-Tier Privilege Architecture (Finding 1):
+        // Authenticated administrators performing backend actions and verified page-builder sessions
+        // are exempt ONLY from HTML/formatting heuristic checks (such as raw <script>/<iframe> XSS rules
+        // when saving post templates). Mandatory zero-tolerance exploit protections (SQLi, RCE, LFI, Object Injection)
+        // execute unconditionally across 100% of requests, even for administrators and page builders.
+        $is_admin_backend          = is_admin() || strpos($raw_uri, '/wp-admin/') !== false;
+        $is_webcare_rest_api       = (strpos($raw_uri, '/wp-json/webcare-pro-security/') !== false) || (defined('REST_REQUEST') && REST_REQUEST && strpos($raw_uri, 'webcare-pro-security') !== false);
+        $is_admin_backend_action   = self::is_authenticated_administrator() && ($is_admin_backend || $is_webcare_rest_api);
+        $is_builder_saving_action  = self::is_authenticated_editor_or_builder();
+        $is_privileged_html_author = ($is_admin_backend_action || $is_builder_saving_action);
 
         // Combine request parameters for deep inspection (inspect raw inputs so WAF sees malicious script tags or encoding before sanitization)
         $params_to_check = [];
@@ -2142,7 +2142,7 @@ class FirewallEngine {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Early inspection of GET parameters before route execution
         if (!empty($_GET) && is_array($_GET)) {
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $params_to_check[] = rawurldecode(http_build_query(wp_unslash($_GET)));
+            $params_to_check[] = rawurldecode(http_build_query(wp_unslash($_GET), '', '&', PHP_QUERY_RFC3986));
         }
 
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Early inspection of raw POST payload before WordPress nonce check
@@ -2157,7 +2157,7 @@ class FirewallEngine {
                     }
                 }
             }
-            $params_to_check[] = rawurldecode(http_build_query($post_data));
+            $params_to_check[] = rawurldecode(http_build_query($post_data, '', '&', PHP_QUERY_RFC3986));
         }
 
         // Inspect Cookies vector
@@ -2213,11 +2213,11 @@ class FirewallEngine {
 
         $combined_payload = implode(' ', $params_to_check);
 
-        // Multi-pass decode combined payload for deep matching
-        $decoded_combined = $combined_payload;
+        // Multi-pass decode combined payload for deep matching (supports both RFC 3986 %20 and form-urlencoded +)
+        $decoded_combined = str_replace('+', ' ', $combined_payload);
         for ($c_i = 0; $c_i < 2; $c_i++) {
             $prev_c = $decoded_combined;
-            $decoded_combined = rawurldecode($decoded_combined);
+            $decoded_combined = str_replace('+', ' ', rawurldecode($decoded_combined));
             if ($decoded_combined === $prev_c) {
                 break;
             }
@@ -2328,7 +2328,8 @@ class FirewallEngine {
         }
 
         // 4. Cross-Site Scripting (XSS)
-        if (!empty($settings['waf_block_xss'])) {
+        // Exempt verified administrators and page builders authoring rich HTML/SVG post layouts from XSS false positives
+        if (!$is_privileged_html_author && !empty($settings['waf_block_xss'])) {
             $xss_payload_stripped = preg_replace('/[\x00-\x20]+/', '', $combined_payload);
             if (preg_match('/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/is', $xss_payload_stripped)) {
                 return [

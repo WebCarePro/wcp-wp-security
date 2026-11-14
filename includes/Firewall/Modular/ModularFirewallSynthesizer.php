@@ -1237,8 +1237,40 @@ class ModularFirewallSynthesizer {
             }
         }
 
+        // Action rank for enforcement rules: block_and_ban (4) > block (3) > challenge_pow (2) > rate_limit (1) > monitor (0)
+        // Sort enforcement rules so higher ranks appear before lower ranks while preserving relative order within each rank (Finding 3)
+        $ranked_buckets = [
+            4 => [], // block_and_ban
+            3 => [], // block
+            2 => [], // challenge_pow
+            1 => [], // rate_limit
+            0 => [], // monitor
+        ];
+        foreach ($enforcement as $er) {
+            $e_act = (string) ($er['action_type'] ?? 'block');
+            $rank = match ($e_act) {
+                'block_and_ban' => 4,
+                'block'         => 3,
+                'challenge_pow' => 2,
+                'rate_limit'    => 1,
+                'monitor'       => 0,
+                default         => 3,
+            };
+            if (!empty($er['sync_cloudflare'])) {
+                $rank = 4;
+            }
+            $ranked_buckets[$rank][] = $er;
+        }
+        $sorted_enforcement = array_merge(
+            $ranked_buckets[4],
+            $ranked_buckets[3],
+            $ranked_buckets[2],
+            $ranked_buckets[1],
+            $ranked_buckets[0]
+        );
+
         return [
-            'enforcement' => $enforcement,
+            'enforcement' => $sorted_enforcement,
             'allow'       => $allow,
             'baseline'    => $baseline,
         ];
@@ -1424,12 +1456,44 @@ class ModularFirewallSynthesizer {
                     $matched_custom = ($uri_match && $method_match && $param_match);
                 }
             } catch (\Throwable $e) {
-                $matched_custom = false;
+                // Fail-closed exception handling (Finding 2):
+                // For an enforcement rule, an evaluation failure produces a safe enforcement outcome.
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Operational security exception diagnostic logging
+                @error_log(sprintf('[WebCare WAF] Custom rule evaluation exception on rule %s: %s', (string) ($r['id'] ?? 'unknown'), $e->getMessage()));
+                $act = self::normalize_rule_action($r);
+                if (in_array($act, ['block', 'block_and_ban'], true) && ($mode === 'enforce') && !$is_rescue_paused) {
+                    $matched_custom = true;
+                    $rule_eval_failed_closed = true;
+                } else {
+                    $matched_custom = false;
+                }
             }
 
             if ($matched_custom) {
-                $act = self::normalize_rule_action($r);
+                $act   = self::normalize_rule_action($r);
                 $limit = intval($r['rate_limit'] ?? 0);
+
+                if (!empty($rule_eval_failed_closed)) {
+                    $rule_rank = ($act === 'block_and_ban' || !empty($r['sync_cloudflare'])) ? 4 : 3;
+                    if ($rule_rank > $best_enforcement_rank) {
+                        $best_enforcement_rank      = $rule_rank;
+                        $best_enforcement_violation = self::build_violation(
+                            $r,
+                            sprintf(
+                                /* translators: 1: rule title, 2: rule ID */
+                                __('Blocked by Custom Modular WAF Rule "%1$s" [%2$s] (fail-closed safety policy enforced).', 'webcare-pro-security'),
+                                (string) ($r['title'] ?? $r['id']),
+                                $r['id']
+                            ),
+                            $should_block,
+                            'high'
+                        );
+                    }
+                    if ($best_enforcement_rank === 4) {
+                        break;
+                    }
+                    continue;
+                }
 
                 if ($act === 'monitor') {
                     $monitored_violations[] = self::build_violation(
@@ -1449,49 +1513,86 @@ class ModularFirewallSynthesizer {
                 // File upload or malicious payload trigger on custom rule
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Low-level runtime WAF inspection blocking unauthorized uploads
                 if (!empty($r['block_uploads']) && !empty($_FILES)) {
-                    return self::build_violation(
-                        $r,
-                        sprintf(
-                            /* translators: %s: rule ID */
-                            __('File upload blocked on protected custom endpoint [%s].', 'webcare-pro-security'),
-                            $r['id']
-                        ),
-                        $should_block,
-                        'critical'
-                    );
+                    $upload_rank = ($act === 'block_and_ban' || !empty($r['sync_cloudflare'])) ? 4 : 3;
+                    if ($upload_rank > $best_enforcement_rank) {
+                        $best_enforcement_rank      = $upload_rank;
+                        $best_enforcement_violation = self::build_violation(
+                            $r,
+                            sprintf(
+                                /* translators: %s: rule ID */
+                                __('File upload blocked on protected custom endpoint [%s].', 'webcare-pro-security'),
+                                $r['id']
+                            ),
+                            $should_block,
+                            'critical'
+                        );
+                    }
+                    if ($best_enforcement_rank === 4) {
+                        break;
+                    }
+                    continue;
                 }
                 if ($has_malicious_payload) {
-                    return self::build_violation(
-                        $r,
-                        sprintf(
-                            /* translators: %s: rule ID */
-                            __('Suspicious payload blocked by custom Modular WAF Rule [%s].', 'webcare-pro-security'),
-                            $r['id']
-                        ),
-                        $should_block,
-                        'critical'
-                    );
+                    $payload_rank = ($act === 'block_and_ban' || !empty($r['sync_cloudflare'])) ? 4 : 3;
+                    if ($payload_rank > $best_enforcement_rank) {
+                        $best_enforcement_rank      = $payload_rank;
+                        $best_enforcement_violation = self::build_violation(
+                            $r,
+                            sprintf(
+                                /* translators: %s: rule ID */
+                                __('Suspicious payload blocked by custom Modular WAF Rule [%s].', 'webcare-pro-security'),
+                                $r['id']
+                            ),
+                            $should_block,
+                            'critical'
+                        );
+                    }
+                    if ($best_enforcement_rank === 4) {
+                        break;
+                    }
+                    continue;
                 }
 
-                // Hard blocks (Rank 4 / Rank 3)
-                if (in_array($act, ['block', 'block_and_ban'], true) || !empty($r['immediate_block']) || ($act === 'rate_limit' && $limit <= 0)) {
-                    return self::build_violation(
+                // Priority ranking (Finding 3): block_and_ban (4) > block (3) > challenge_pow (2) > rate_limit (1)
+                $is_ban = ($act === 'block_and_ban' || !empty($r['sync_cloudflare']));
+                if ($is_ban) {
+                    $best_enforcement_rank      = 4;
+                    $best_enforcement_violation = self::build_violation(
                         $r,
                         sprintf(
                             /* translators: 1: rule title, 2: rule ID */
-                            __('Blocked by Custom Modular WAF Rule "%1$s" [%2$s].', 'webcare-pro-security'),
+                            __('Blocked and banned by Custom Modular WAF Rule "%1$s" [%2$s].', 'webcare-pro-security'),
                             (string) ($r['title'] ?? $r['id']),
                             $r['id']
                         ),
                         $should_block,
-                        'high'
+                        'critical'
                     );
+                    break; // Maximum priority reached: no other action can beat rank 4
+                }
+
+                if ($act === 'block' || !empty($r['immediate_block']) || ($act === 'rate_limit' && $limit <= 0)) {
+                    if ($best_enforcement_rank < 3) {
+                        $best_enforcement_rank      = 3;
+                        $best_enforcement_violation = self::build_violation(
+                            $r,
+                            sprintf(
+                                /* translators: 1: rule title, 2: rule ID */
+                                __('Blocked by Custom Modular WAF Rule "%1$s" [%2$s].', 'webcare-pro-security'),
+                                (string) ($r['title'] ?? $r['id']),
+                                $r['id']
+                            ),
+                            $should_block,
+                            'high'
+                        );
+                    }
+                    continue; // Continue checking in case a later rule is block_and_ban (Rank 4)
                 }
 
                 // Challenge PoW (Rank 2)
                 if ($act === 'challenge_pow') {
                     if ($best_enforcement_rank < 2) {
-                        $best_enforcement_rank = 2;
+                        $best_enforcement_rank      = 2;
                         $best_enforcement_violation = self::build_violation(
                             $r,
                             sprintf(
@@ -1510,7 +1611,7 @@ class ModularFirewallSynthesizer {
                 // Rate limit (Rank 1)
                 if ($act === 'rate_limit' && $limit > 0 && self::is_modular_rate_limited($r['id'], $ip, $limit)) {
                     if ($best_enforcement_rank < 1) {
-                        $best_enforcement_rank = 1;
+                        $best_enforcement_rank      = 1;
                         $best_enforcement_violation = self::build_violation(
                             $r,
                             sprintf(
@@ -1590,6 +1691,9 @@ class ModularFirewallSynthesizer {
                     $matched_custom = ($uri_match && $method_match && $param_match);
                 }
             } catch (\Throwable $e) {
+                // Evaluation exception in Phase B: Allow rule evaluation failure must NEVER grant permission (Finding 2)
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Operational security exception diagnostic logging
+                @error_log(sprintf('[WebCare WAF] Exception evaluating allow rule %s: %s', (string) ($r['id'] ?? 'unknown'), $e->getMessage()));
                 $matched_custom = false;
             }
 
@@ -1648,25 +1752,26 @@ class ModularFirewallSynthesizer {
             $cat     = $r['category'] ?? '';
             $rule_id = (string) ($r['id'] ?? '');
 
-            // Critical system locks (abspath_lock, tamper_guard, upload_guard) CANNOT be suppressed by $exempt_all_heuristics
+            // Critical system locks (abspath_lock, tamper_guard, upload_guard) CANNOT be suppressed by $exempt_all_heuristics, exemptions, or rescue pause (Finding 4)
             $is_critical_lock = in_array($cat, ['abspath_lock', 'tamper_guard', 'upload_guard'], true);
             if (!$is_critical_lock && $exempt_all_heuristics) {
                 continue;
             }
 
-            if (in_array($rule_id, $exempt_ids, true) || in_array($cat, $exempt_ids, true)) {
+            if (!$is_critical_lock && (in_array($rule_id, $exempt_ids, true) || in_array($cat, $exempt_ids, true))) {
                 continue;
             }
 
-            // Skip any rule/target explicitly whitelisted via Rescue Assistant
+            // Skip any rule/target explicitly whitelisted via Rescue Assistant (except critical system locks)
             if (
-                class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')
+                !$is_critical_lock
+                && class_exists('\\WebCareProScanner\\Firewall\\RescueAssistantManager')
                 && \WebCareProScanner\Firewall\RescueAssistantManager::is_rule_or_request_trusted($rule_id, $clean_uri, $req_action, $rest_query)
             ) {
                 continue;
             }
 
-            $should_block = ($mode === 'enforce') && !$is_rescue_paused;
+            $should_block = ($mode === 'enforce') && (!$is_rescue_paused || $is_critical_lock);
             $is_smart     = ($mode === 'smart_learning');
             $methods      = is_array($r['http_methods'] ?? null) ? array_map('strtoupper', $r['http_methods']) : [];
 
