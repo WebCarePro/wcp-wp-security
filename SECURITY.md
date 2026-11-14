@@ -12,7 +12,7 @@ WebCare Pro Security & Firewall is maintained through active continuous delivery
 
 | Version | Status | Maintenance Policy |
 |:---|:---:|:---|
-| **2.12.0 (Latest Active Release)** | ✅ Active | Actively maintained with continuous features, security hardening, and regular engine updates |
+| **2.15.0 (Latest Active Release)** | ✅ Active | Actively maintained with continuous features, security hardening, and regular engine updates |
 | **Prior Releases** | 🔄 Upgrade Recommended | Feature-complete. Upgrading to the latest active release ensures access to current threat intelligence signatures and performance enhancements |
 
 ---
