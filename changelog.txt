@@ -3,10 +3,11 @@
   * Two-Tier Privilege Separation for Authenticated Administrators & Page Builders (Finding 1):
     - Removed early pipeline and evaluate_rules() returns for authenticated administrators and page builders.
     - Zero-tolerance mandatory exploit protections (SQLi, RCE, LFI, PHP Object Injection, executable uploads, and sensitive probes) execute unconditionally across 100% of requests, even for authenticated administrators in wp-admin or visual page builders (Elementor/Gutenberg/Divi).
-    - Privileged administrative operations are scoped exclusively from velocity/rate-limiting and formatting heuristic checks (XSS HTML/SVG/script tags during post saving), completely preventing compromised admin session or CSRF exploitation while avoiding false positives during legitimate layout editing.
+    - Privileged administrative operations are scoped exclusively from velocity/rate-limiting and formatting heuristic checks (XSS HTML/SVG/script tags and AI prompt-injection patterns during post saving), completely preventing compromised admin session or CSRF exploitation while avoiding false positives during legitimate layout editing.
+    - Added legitimate plugin configuration exemption for authenticated administrators updating WebCare WAF settings or saving custom regex signatures via /wp-json/webcare-pro-security/ without self-interception.
   * Fail-Closed Exception Handling in Runtime Rule Evaluation (Finding 2):
     - Hardened ModularFirewallSynthesizer::evaluate_runtime_modular_rules() to enforce strict fail-closed safety upon condition evaluation exceptions.
-    - When condition evaluation on an enforcement rule (block or block_and_ban) encounters an unexpected exception, it logs a bounded diagnostic and safely enforces a block verdict.
+    - When condition evaluation on any enforcement rule (block, block_and_ban, challenge_pow, rate_limit) encounters an unexpected exception, it logs a bounded diagnostic and safely enforces a block verdict.
     - For Allow rules, an evaluation exception strictly sets matched=false, guaranteeing that an evaluation failure can never grant permission.
   * Strict Priority Ranking: Block-and-Ban Dominance (Finding 3):
     - Partitioned enforcement rules into ranked priority buckets (block_and_ban: 4 > block: 3 > challenge_pow: 2 > rate_limit: 1 > monitor: 0), preserving relative order within each rank.

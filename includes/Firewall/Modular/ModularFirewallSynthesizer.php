@@ -1461,7 +1461,7 @@ class ModularFirewallSynthesizer {
                 // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Operational security exception diagnostic logging
                 @error_log(sprintf('[WebCare WAF] Custom rule evaluation exception on rule %s: %s', (string) ($r['id'] ?? 'unknown'), $e->getMessage()));
                 $act = self::normalize_rule_action($r);
-                if (in_array($act, ['block', 'block_and_ban'], true) && ($mode === 'enforce') && !$is_rescue_paused) {
+                if (in_array($act, ['block', 'block_and_ban', 'challenge_pow', 'rate_limit'], true) && ($mode === 'enforce') && !$is_rescue_paused) {
                     $matched_custom = true;
                     $rule_eval_failed_closed = true;
                 } else {

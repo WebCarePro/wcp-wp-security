@@ -2132,6 +2132,12 @@ class FirewallEngine {
         $is_builder_saving_action  = self::is_authenticated_editor_or_builder();
         $is_privileged_html_author = ($is_admin_backend_action || $is_builder_saving_action);
 
+        // Legitimate plugin management exception: Allow authenticated administrators to configure WebCare WAF
+        // settings and save custom regex signatures via the WebCare REST API without false-positive self-interception
+        if (self::is_authenticated_administrator() && $is_webcare_rest_api) {
+            return null;
+        }
+
         // Combine request parameters for deep inspection (inspect raw inputs so WAF sees malicious script tags or encoding before sanitization)
         $params_to_check = [];
 
@@ -2375,7 +2381,8 @@ class FirewallEngine {
         }
 
         // 6. AI Prompt Injection & Agent Poisoning Shield (Rule #35)
-        if (!empty($settings['waf_block_ai_prompt_injection'])) {
+        // Exempt verified administrators and page builders writing content or editing posts from prompt-injection false positives
+        if (!$is_privileged_html_author && !empty($settings['waf_block_ai_prompt_injection'])) {
             $prompt_patterns = [
                 '/\b(ignore\s+(all\s+)?(previous|prior|above)\s+instructions)\b/i',
                 '/\b(system\s*prompt\s*:|\[\s*system\s*\]|\bDAN\s+mode\b|developer\s+mode\s+active)\b/i',
