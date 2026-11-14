@@ -2236,42 +2236,102 @@ class FirewallEngine {
             $params_to_check[] = rawurldecode($referer);
         }
 
-        $full_raw_body                  = '';
-        $raw_body_chunks_for_heuristics = [];
+        $full_raw_body = '';
+        $content_type  = isset($_SERVER['CONTENT_TYPE']) ? sanitize_text_field(wp_unslash($_SERVER['CONTENT_TYPE'])) : '';
+        $is_multipart  = stripos($content_type, 'multipart/form-data') !== false;
 
         if (in_array($request_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
-            $content_type      = isset($_SERVER['CONTENT_TYPE']) ? sanitize_text_field(wp_unslash($_SERVER['CONTENT_TYPE'])) : '';
-            $is_multipart      = stripos($content_type, 'multipart/form-data') !== false;
             $max_inspect_bytes = isset($settings['waf_max_inspected_body_bytes'])
                 ? max(262144, (int) $settings['waf_max_inspected_body_bytes'])
-                : 4194304; // 4 MB default full-stream inspection ceiling
+                : 4194304; // 4 MB default ceiling for both standard and multipart requests
             $chunk_size        = 65536; // 64 KB chunks
-            $overlap_size      = 8192;  // 8 KB rolling overlap across chunk boundaries
+            $overlap_size      = 8192;  // 8 KB rolling overlap
 
-            $content_len = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
-            if (!$is_multipart && $content_len > $max_inspect_bytes) {
+            $expected_content_length = (isset($_SERVER['CONTENT_LENGTH']) && is_numeric($_SERVER['CONTENT_LENGTH']))
+                ? max(0, (int) $_SERVER['CONTENT_LENGTH'])
+                : 0;
+
+            // 1. Enforce explicit size ceiling across ALL body types (including multipart/form-data)
+            if ($expected_content_length > $max_inspect_bytes) {
                 return [
                     'id'          => 'WAF-BODY-INSPECTION-LIMIT-EXCEEDED',
                     'name'        => 'Request Body Inspection Ceiling Enforced',
                     'category'    => 'Protocol Defense',
-                    'description' => 'Non-multipart request body exceeds maximum safe deep-inspection size.',
-                    'payload'     => sprintf('Content-Length: %d bytes (limit: %d)', $content_len, $max_inspect_bytes),
+                    'description' => 'Request body exceeds maximum safe deep-inspection size policy.',
+                    'payload'     => sprintf('Content-Length: %d bytes (limit: %d)', $expected_content_length, $max_inspect_bytes),
                 ];
             }
 
-            $bytes_read = 0;
-            $prev_tail  = '';
-            $exceeded   = false;
+            // For multipart uploads, also enforce total uploaded file size ceiling and reject INI/FORM size overflow errors
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-flight multipart resource ceiling validation
+            if ($is_multipart && !empty($_FILES) && is_array($_FILES)) {
+                $total_files_bytes = 0;
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                foreach (self::flatten_uploaded_files($_FILES) as $uf) {
+                    $u_err = isset($uf['error']) ? (int) $uf['error'] : 0;
+                    if (in_array($u_err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE, UPLOAD_ERR_PARTIAL], true)) {
+                        return [
+                            'id'          => 'WAF-MULTIPART-UPLOAD-INCOMPLETE-OR-OVERSIZED',
+                            'name'        => 'Multipart Upload Size / Completeness Guard',
+                            'category'    => 'Protocol Defense',
+                            'description' => 'Multipart file upload exceeded size limits or was only partially received.',
+                            'payload'     => sprintf('Upload error code: %d', $u_err),
+                        ];
+                    }
+                    $f_sz = isset($uf['size']) ? max(0, (int) $uf['size']) : 0;
+                    if (!empty($uf['tmp_name']) && is_string($uf['tmp_name']) && file_exists($uf['tmp_name'])) {
+                        $disk_sz = @filesize($uf['tmp_name']);
+                        if (is_int($disk_sz) && $disk_sz > $f_sz) {
+                            $f_sz = $disk_sz;
+                        }
+                    }
+                    $total_files_bytes += $f_sz;
+                    if ($total_files_bytes > $max_inspect_bytes) {
+                        return [
+                            'id'          => 'WAF-BODY-INSPECTION-LIMIT-EXCEEDED',
+                            'name'        => 'Multipart Upload Ceiling Enforced',
+                            'category'    => 'Protocol Defense',
+                            'description' => 'Total multipart uploaded file bytes exceed maximum safe inspection policy.',
+                            'payload'     => sprintf('Multipart files total: %d bytes (limit: %d)', $total_files_bytes, $max_inspect_bytes),
+                        ];
+                    }
+                }
+            }
 
-            if (isset($GLOBALS['WEBCARE_TEST_RAW_INPUT']) && is_string($GLOBALS['WEBCARE_TEST_RAW_INPUT'])) {
-                $test_stream = $GLOBALS['WEBCARE_TEST_RAW_INPUT'];
-                $test_len    = strlen($test_stream);
-                $offset      = 0;
+            // 2. Explicit stream-state tracking (fail-closed on open/read failure or truncated body)
+            $stream_opened        = false;
+            $stream_read_failed   = false;
+            $bytes_read           = 0;
+            $exceeded             = false;
+            $inspection_completed = false;
+            $prev_tail            = '';
+
+            // In standard PHP SAPIs, multipart/form-data bodies are consumed into $_POST and $_FILES before script start,
+            // leaving php://input empty unless a raw test stream is injected.
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            $php_consumed_multipart = $is_multipart && (!empty($_POST) || !empty($_FILES)) && !isset($GLOBALS['WEBCARE_TEST_RAW_INPUT']);
+
+            if (!empty($GLOBALS['WEBCARE_TEST_FORCE_FOPEN_FAIL'])) {
+                $stream_opened      = false;
+                $stream_read_failed = true;
+            } elseif (isset($GLOBALS['WEBCARE_TEST_RAW_INPUT']) && is_string($GLOBALS['WEBCARE_TEST_RAW_INPUT'])) {
+                $stream_opened = true;
+                $test_stream   = $GLOBALS['WEBCARE_TEST_RAW_INPUT'];
+                $test_len      = strlen($test_stream);
+                $offset        = 0;
+                $fail_at       = isset($GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT']) && is_numeric($GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT'])
+                    ? (int) $GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT']
+                    : -1;
+
                 while ($offset < $test_len) {
+                    if ($fail_at >= 0 && $bytes_read >= $fail_at) {
+                        $stream_read_failed = true;
+                        break;
+                    }
                     $chunk = substr($test_stream, $offset, $chunk_size);
                     $offset += strlen($chunk);
                     $bytes_read += strlen($chunk);
-                    if (!$is_multipart && $bytes_read > $max_inspect_bytes) {
+                    if ($bytes_read > $max_inspect_bytes) {
                         $exceeded = true;
                         break;
                     }
@@ -2282,45 +2342,63 @@ class FirewallEngine {
                             return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
                         }, $norm_w);
                     }
-                    $params_to_check[]                = $norm_w;
-                    $raw_body_chunks_for_heuristics[] = $norm_w;
-                    if ($bytes_read <= 524288) {
-                        $full_raw_body .= $chunk;
-                    }
-                    $prev_tail = strlen($chunk) > $overlap_size ? substr($chunk, -$overlap_size) : $chunk;
+                    $params_to_check[] = $norm_w;
+                    $full_raw_body    .= $chunk;
+                    $prev_tail         = strlen($chunk) > $overlap_size ? substr($chunk, -$overlap_size) : $chunk;
                 }
-            } else {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Streaming raw request body from php://input stream
+                if (!$stream_read_failed && !$exceeded) {
+                    $inspection_completed = true;
+                }
+            } elseif (!$php_consumed_multipart) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Streaming raw HTTP request body
                 $in_fp = @fopen('php://input', 'rb');
-                if (is_resource($in_fp)) {
+                if (!is_resource($in_fp)) {
+                    $stream_opened      = false;
+                    $stream_read_failed = ($expected_content_length > 0);
+                } else {
+                    $fail_at       = isset($GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT']) && is_numeric($GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT'])
+                        ? (int) $GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT']
+                        : -1;
+
                     while (!feof($in_fp)) {
-                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Low-memory chunked streaming of raw HTTP input stream
-                        $chunk = (string) @fread($in_fp, $chunk_size);
-                        if ($chunk === '') {
+                        if ($fail_at >= 0 && $bytes_read >= $fail_at) {
+                            $stream_read_failed = true;
                             break;
                         }
-                        $bytes_read += strlen($chunk);
-                        if (!$is_multipart && $bytes_read > $max_inspect_bytes) {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Chunked streaming of php://input
+                        $raw_chunk = @fread($in_fp, $chunk_size);
+                        if ($raw_chunk === false) {
+                            $stream_read_failed = true;
+                            break;
+                        }
+                        if ($raw_chunk === '') {
+                            break;
+                        }
+                        $bytes_read += strlen($raw_chunk);
+                        if ($bytes_read > $max_inspect_bytes) {
                             $exceeded = true;
                             break;
                         }
-                        $window = $prev_tail . $chunk;
+                        $window = $prev_tail . $raw_chunk;
                         $norm_w = wp_unslash($window);
                         if (strpos($norm_w, '\\u') !== false) {
                             $norm_w = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
                                 return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
                             }, $norm_w);
                         }
-                        $params_to_check[]                = $norm_w;
-                        $raw_body_chunks_for_heuristics[] = $norm_w;
-                        if ($bytes_read <= 524288) {
-                            $full_raw_body .= $chunk;
-                        }
-                        $prev_tail = strlen($chunk) > $overlap_size ? substr($chunk, -$overlap_size) : $chunk;
+                        $params_to_check[] = $norm_w;
+                        $full_raw_body    .= $raw_chunk;
+                        $prev_tail         = strlen($raw_chunk) > $overlap_size ? substr($raw_chunk, -$overlap_size) : $raw_chunk;
                     }
-                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Close php://input stream
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                     @fclose($in_fp);
+                    if (!$stream_read_failed && !$exceeded) {
+                        $inspection_completed = true;
+                    }
                 }
+            } else {
+                $stream_opened        = true;
+                $inspection_completed = true;
             }
 
             if ($exceeded) {
@@ -2333,6 +2411,27 @@ class FirewallEngine {
                 ];
             }
 
+            // Fail closed if stream failed to open/read, or if fewer bytes were read than declared Content-Length
+            if (
+                $stream_read_failed
+                || !$inspection_completed
+                || (!$php_consumed_multipart && $expected_content_length > 0 && $bytes_read < $expected_content_length)
+            ) {
+                return [
+                    'id'          => 'WAF-STREAM-INSPECTION-INCOMPLETE',
+                    'name'        => 'Request Body Stream Inspection Failure',
+                    'category'    => 'Protocol Defense',
+                    'description' => 'Request body stream could not be opened or read completely to declared Content-Length; failing closed.',
+                    'payload'     => sprintf(
+                        'Opened: %s, Failed: %s, Expected: %d, Read: %d',
+                        $stream_opened ? 'yes' : 'no',
+                        $stream_read_failed ? 'yes' : 'no',
+                        $expected_content_length,
+                        $bytes_read
+                    ),
+                ];
+            }
+
             if ($full_raw_body !== '') {
                 $batch_sub_payloads = self::extract_rest_batch_payloads($raw_uri, $full_raw_body);
                 if (!empty($batch_sub_payloads)) {
@@ -2341,6 +2440,7 @@ class FirewallEngine {
             }
         }
 
+        // Mandatory inspection payload: 100% unredacted (never strips passwords or config expressions)
         $combined_payload = implode(' ', $params_to_check);
 
         // Multi-pass decode combined payload for deep matching (supports both RFC 3986 %20 and form-urlencoded +)
@@ -2358,73 +2458,92 @@ class FirewallEngine {
             }, $decoded_combined);
         }
 
-        // Build heuristic payload representation (used ONLY by XSS and AI-Prompt heuristic checks).
-        // Mandatory signatures (LFI, SQLi, RCE, Object Injection, Null-Byte, SSRF) ALWAYS inspect
-        // the 100% unredacted $combined_payload and $decoded_combined.
-        $has_password_field = false;
+        // Build Heuristic Payload from a single normalized source of truth (used ONLY by XSS and AI-Prompt checks):
+        // 1. Parse $_POST, URL-encoded body, or JSON body.
+        // 2. Mask recognized password fields (up to depth 4) in that parsed structure.
+        // 3. Apply route-specific WAF expression masking when $is_waf_config_write is true.
+        // 4. Never fall back to concatenating unmasked raw pwd=<script> chunks when the body is structured POST/JSON.
         // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        if (!empty($_POST) && is_array($_POST)) {
-            foreach (['pwd', 'password', 'pass1', 'pass2', 'account_password'] as $pw_k) {
-                // phpcs:ignore WordPress.Security.NonceVerification.Missing
-                if (isset($_POST[$pw_k])) {
-                    $has_password_field = true;
-                    break;
+        $heuristic_post = (!empty($_POST) && is_array($_POST)) ? self::mask_password_fields_for_heuristics(wp_unslash($_POST)) : [];
+        if ($is_waf_config_write && !empty($heuristic_post)) {
+            $heuristic_post = self::redact_waf_config_expressions($heuristic_post, $resolved_rest_route);
+        }
+
+        $heuristic_body_str = '';
+        if ($full_raw_body !== '') {
+            $raw_unslashed = wp_unslash($full_raw_body);
+            if (strpos($raw_unslashed, '\\u') !== false) {
+                $raw_unslashed = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
+                    return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
+                }, $raw_unslashed);
+            }
+            $trimmed_body = ltrim($raw_unslashed);
+            $is_json_body = ($trimmed_body !== '' && ($trimmed_body[0] === '{' || $trimmed_body[0] === '['))
+                || stripos($content_type, 'application/json') !== false;
+            $is_Urlencoded_body = stripos($content_type, 'application/x-www-form-urlencoded') !== false
+                || (!$is_json_body && !$is_multipart && strpos($trimmed_body, '=') !== false);
+
+            if ($is_json_body) {
+                $parsed_json = json_decode($raw_unslashed, true);
+                if (is_array($parsed_json)) {
+                    $parsed_json = self::mask_password_fields_for_heuristics($parsed_json);
+                    if ($is_waf_config_write) {
+                        $parsed_json = self::redact_waf_config_expressions($parsed_json, $resolved_rest_route);
+                    }
+                    $heuristic_body_str = (string) wp_json_encode($parsed_json);
+                } else {
+                    $heuristic_body_str = $raw_unslashed;
                 }
+            } elseif ($is_Urlencoded_body) {
+                $parsed_form = [];
+                wp_parse_str($raw_unslashed, $parsed_form);
+                if (is_array($parsed_form) && !empty($parsed_form)) {
+                    $parsed_form = self::mask_password_fields_for_heuristics($parsed_form);
+                    if ($is_waf_config_write) {
+                        $parsed_form = self::redact_waf_config_expressions($parsed_form, $resolved_rest_route);
+                    }
+                    $heuristic_body_str = !empty($parsed_form)
+                        ? rawurldecode(http_build_query($parsed_form, '', '&', PHP_QUERY_RFC3986))
+                        : '';
+                } else {
+                    $heuristic_body_str = $raw_unslashed;
+                }
+            } else {
+                $heuristic_body_str = $raw_unslashed;
             }
         }
 
-        $heuristic_combined = $combined_payload;
-        $heuristic_decoded  = $decoded_combined;
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $heuristic_get_str = (!empty($_GET) && is_array($_GET))
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            ? rawurldecode(http_build_query(wp_unslash($_GET), '', '&', PHP_QUERY_RFC3986))
+            : '';
+        $heuristic_post_str = !empty($heuristic_post)
+            ? rawurldecode(http_build_query($heuristic_post, '', '&', PHP_QUERY_RFC3986))
+            : '';
 
-        if ($is_waf_config_write || $has_password_field) {
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $heuristic_post = !empty($_POST) && is_array($_POST) ? wp_unslash($_POST) : [];
-            if ($has_password_field) {
-                foreach (['pwd', 'password', 'pass1', 'pass2', 'account_password'] as $pw_field) {
-                    if (isset($heuristic_post[$pw_field]) && is_string($heuristic_post[$pw_field]) && strlen($heuristic_post[$pw_field]) <= 128) {
-                        unset($heuristic_post[$pw_field]);
-                    }
-                }
-            }
-            if ($is_waf_config_write && !empty($heuristic_post)) {
-                $heuristic_post = self::redact_waf_config_expressions($heuristic_post, $resolved_rest_route);
-            }
+        $heuristic_combined = trim(implode(' ', array_filter([
+            $query_string,
+            $heuristic_get_str,
+            $heuristic_post_str,
+            $cookie_str !== '' ? rawurldecode($cookie_str) : '',
+            $user_agent,
+            $referer !== '' ? rawurldecode($referer) : '',
+            $heuristic_body_str,
+        ])));
 
-            $heuristic_body_parts = $raw_body_chunks_for_heuristics;
-            if ($is_waf_config_write && $full_raw_body !== '') {
-                $h_json = json_decode(wp_unslash($full_raw_body), true);
-                if (is_array($h_json)) {
-                    $heuristic_body_parts = [
-                        (string) wp_json_encode(self::redact_waf_config_expressions($h_json, $resolved_rest_route)),
-                    ];
-                }
+        $heuristic_decoded = str_replace('+', ' ', $heuristic_combined);
+        for ($h_i = 0; $h_i < 2; $h_i++) {
+            $prev_h = $heuristic_decoded;
+            $heuristic_decoded = str_replace('+', ' ', rawurldecode($heuristic_decoded));
+            if ($heuristic_decoded === $prev_h) {
+                break;
             }
-
-            $heuristic_combined = trim(implode(' ', array_filter(array_merge(
-                [
-                    $query_string,
-                    !empty($_GET) && is_array($_GET) ? rawurldecode(http_build_query(wp_unslash($_GET), '', '&', PHP_QUERY_RFC3986)) : '',
-                    !empty($heuristic_post) ? rawurldecode(http_build_query($heuristic_post, '', '&', PHP_QUERY_RFC3986)) : '',
-                    $cookie_str !== '' ? rawurldecode($cookie_str) : '',
-                    $user_agent,
-                    $referer !== '' ? rawurldecode($referer) : '',
-                ],
-                $heuristic_body_parts
-            ))));
-
-            $heuristic_decoded = str_replace('+', ' ', $heuristic_combined);
-            for ($h_i = 0; $h_i < 2; $h_i++) {
-                $prev_h = $heuristic_decoded;
-                $heuristic_decoded = str_replace('+', ' ', rawurldecode($heuristic_decoded));
-                if ($heuristic_decoded === $prev_h) {
-                    break;
-                }
-            }
-            if (strpos($heuristic_decoded, '\\u') !== false) {
-                $heuristic_decoded = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
-                    return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
-                }, $heuristic_decoded);
-            }
+        }
+        if (strpos($heuristic_decoded, '\\u') !== false) {
+            $heuristic_decoded = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
+                return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
+            }, $heuristic_decoded);
         }
 
         // 1. Path Traversal & LFI/RFI
@@ -6062,6 +6181,51 @@ class FirewallEngine {
     }
 
     /**
+     * Parse human-readable ini size strings (e.g. '64M', '2G', '512K') into bytes.
+     *
+     * @param string $val
+     * @return int
+     */
+    public static function parse_ini_size_bytes(string $val): int {
+        $val = trim($val);
+        if ($val === '') {
+            return 0;
+        }
+        $last = strtolower($val[strlen($val) - 1]);
+        $num  = (int) $val;
+        switch ($last) {
+            case 'g':
+                $num *= 1024 * 1024 * 1024;
+                break;
+            case 'm':
+                $num *= 1024 * 1024;
+                break;
+            case 'k':
+                $num *= 1024;
+                break;
+        }
+        return $num;
+    }
+
+    /**
+     * Resolve the maximum permitted upload body size in bytes based on WordPress and PHP runtime settings.
+     *
+     * @return int
+     */
+    public static function get_max_upload_limit_bytes(): int {
+        if (function_exists('wp_max_upload_size')) {
+            $wp_max = (int) wp_max_upload_size();
+            if ($wp_max > 0) {
+                return $wp_max;
+            }
+        }
+        $post_max   = self::parse_ini_size_bytes((string) ini_get('post_max_size'));
+        $upload_max = self::parse_ini_size_bytes((string) ini_get('upload_max_filesize'));
+        $limit      = min($post_max ?: 67108864, $upload_max ?: 33554432);
+        return max(4194304, $limit);
+    }
+
+    /**
      * Recursively normalize arbitrary multi-dimensional $_FILES structures into a flat list
      * of ['name' => string, 'tmp_name' => string, 'type' => string, 'error' => int, 'size' => int].
      *
@@ -6367,15 +6531,45 @@ class FirewallEngine {
                 }
             }
 
-            // 5. Embedded PHP Polyglots & Phar Deserialization Headers in Media (Inspect head and tail)
-            $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf'];
+            // 5. Embedded PHP Polyglots & Phar Deserialization Headers in Media (Full-stream chunked inspection with overlap)
+            $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf', 'ico', 'avif'];
             if (in_array($ext, $image_exts, true)) {
-                $head = (string) @file_get_contents($tmp_path, false, null, 0, 8192);
-                $fsize = @filesize($tmp_path) ?: 0;
-                $tail = $fsize > 8192 ? (string) @file_get_contents($tmp_path, false, null, $fsize - 8192, 8192) : '';
-                $check_sample = $head . ' ' . $tail;
                 $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
-                if (!empty($check_sample) && (preg_match($php_pattern, $check_sample) || stripos($check_sample, '__HALT_COMPILER()') !== false)) {
+                $polyglot_hit = false;
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+                $ufp = @fopen($tmp_path, 'rb');
+                if (!is_resource($ufp)) {
+                    $polyglot_hit = true; // Fail closed if temp upload cannot be opened for inspection
+                } else {
+                    $u_prev = '';
+                    $u_read = 0;
+                    $u_max  = isset($settings['waf_max_inspected_body_bytes']) ? max(262144, (int) $settings['waf_max_inspected_body_bytes']) : 10485760;
+                    while (!feof($ufp)) {
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+                        $u_chunk = @fread($ufp, 65536);
+                        if ($u_chunk === false) {
+                            $polyglot_hit = true;
+                            break;
+                        }
+                        if ($u_chunk === '') {
+                            break;
+                        }
+                        $u_read += strlen($u_chunk);
+                        if ($u_read > $u_max) {
+                            $polyglot_hit = true;
+                            break;
+                        }
+                        $u_win = $u_prev . $u_chunk;
+                        if (preg_match($php_pattern, $u_win) || stripos($u_win, '__HALT_COMPILER()') !== false) {
+                            $polyglot_hit = true;
+                            break;
+                        }
+                        $u_prev = strlen($u_chunk) > 1024 ? substr($u_chunk, -1024) : $u_chunk;
+                    }
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                    @fclose($ufp);
+                }
+                if ($polyglot_hit) {
                     $client_ip = self::get_client_ip();
                     if ($log_and_ban) {
                         if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
@@ -9856,6 +10050,41 @@ class FirewallEngine {
                 'timestamp'   => current_time('mysql'),
             ]);
         }
+    }
+
+    /**
+     * Mask recognized scalar password fields (up to depth 4 and <= 128 chars) exclusively in the
+     * parsed heuristic representation so passwords containing '<script' or prompt-like text do not
+     * cause false-positive XSS / AI-Prompt blocks, while mandatory signatures inspect 100% raw values.
+     *
+     * @param array $data  Parsed POST or JSON array.
+     * @param int   $depth Current recursion depth.
+     * @return array Copy of $data with scalar password fields removed.
+     */
+    public static function mask_password_fields_for_heuristics(array $data, int $depth = 0): array {
+        if ($depth > 4) {
+            return $data;
+        }
+        $pw_keys = [
+            'pwd',
+            'password',
+            'pass1',
+            'pass2',
+            'account_password',
+            'user_pass',
+            'current_password',
+            'new_password',
+            'confirm_password',
+        ];
+        foreach ($data as $k => $v) {
+            $k_lower = is_string($k) ? strtolower($k) : '';
+            if ($k_lower !== '' && in_array($k_lower, $pw_keys, true) && is_string($v) && strlen($v) <= 128) {
+                unset($data[$k]);
+            } elseif (is_array($v)) {
+                $data[$k] = self::mask_password_fields_for_heuristics($v, $depth + 1);
+            }
+        }
+        return $data;
     }
 
     /**

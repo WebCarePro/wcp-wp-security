@@ -1,6 +1,6 @@
 {
   "name": "webcare-pro-security",
-  "version": "2.14.0",
+  "version": "2.15.0",
   "description": "React Admin UI for WebCare Pro Security & Firewall",
   "scripts": {
     "build": "wp-scripts build",

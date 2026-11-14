@@ -4,7 +4,7 @@ Tags: security, malware, ai-security, firewall, 2fa
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 2.14.0
+Stable tag: 2.15.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -215,6 +215,9 @@ To compile the React admin application from source:
 4. Run `npm run package` to compile and package the release zip.
 
 == Changelog ==
+
+= 2.15.0 =
+* Zero-Gap Fail-Closed Streaming & Multipart Resource Ceilings: Enforced explicit inspection ceiling across all request bodies including multipart/form-data and total $_FILES sizes; implemented fail-closed stream state tracking on fopen/fread/short reads; unified heuristic representation from parsed structures with recursive password masking; removed 512KB config truncation; and upgraded media polyglot inspection from head/tail sampling to full-stream chunked streaming with overlap.
 
 = 2.14.0 =
 * Bounded Streaming Request-Body Inspection & Unredacted Password Analysis: Replaced head/tail truncation with 64KB chunked streaming inspection up to a 4MB ceiling with 8KB rolling overlap, eliminated password field omissions from mandatory exploit checks while preserving heuristic masking, added strict regex end-anchoring on REST authoring routes, and made WAF configuration redaction strictly route-schema aware.

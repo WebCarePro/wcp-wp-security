@@ -1,4 +1,21 @@
-﻿v:2.14.0 - 2026-11-14
+﻿v:2.15.0 - 2026-11-15
+- Zero-Gap Fail-Closed Streaming, Multipart Resource Ceilings & Unified Heuristic Normalization:
+  * Strict Multipart & Non-Multipart Inspection Ceiling:
+    - Enforced $max_inspect_bytes (default 4 MB, configurable via waf_max_inspected_body_bytes) across ALL request classes, including multipart/form-data.
+    - Added total $_FILES upload byte validation against $max_inspect_bytes and fail-closed handling for UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE, and UPLOAD_ERR_PARTIAL (WAF-MULTIPART-UPLOAD-INCOMPLETE-OR-OVERSIZED).
+  * Explicit Fail-Closed Stream State Tracking:
+    - Tracked stream_opened, stream_read_failed, bytes_read, expected_content_length, and inspection_completed across all request bodies.
+    - Failed closed (WAF-STREAM-INSPECTION-INCOMPLETE) on fopen() failure, fread() stream failure, or short reads where bytes_read < expected_content_length, eliminating silent pass conditions.
+  * Single Normalized Source of Truth for Heuristics:
+    - Implemented mask_password_fields_for_heuristics() traversing parsed URL-encoded and JSON structures up to depth 4 to mask passwords (pwd, password, pass1, pass2, account_password, user_pass, etc.) <= 128 chars.
+    - Completely decoupled heuristic representations from raw body chunks, preventing raw passwords containing <script> or AI prompt injection phrases from causing false-positive blocks.
+    - Ensured mandatory signatures (SQLi, PHP code injection/RCE, PHP Object Injection, LFI, SSRF) continue to inspect 100% unredacted raw bodies.
+    - Removed 512 KB truncation cap on $full_raw_body, allowing large JSON rule configurations (> 512 KB) to decode and redact correctly without heuristic false positives.
+  * Upgraded Media Polyglot Inspection to Chunked Streaming:
+    - Replaced 8 KB head/tail sampling in inspect_uploaded_file() with 64 KB chunk streaming and 1 KB rolling overlap up to 10 MB.
+    - Guaranteed detection of embedded PHP polyglot webshells and Phar deserialization headers anywhere in uploaded media files (JPG, PNG, GIF, WebP, PDF, ICO, AVIF).
+
+v:2.14.0 - 2026-11-14
 - Bounded Streaming Body Inspection, Unredacted Password Analysis & Strict Route-Schema Boundaries:
   * Unredacted Password Fields in Mandatory Inspection (Finding 1):
     - Removed early unsetting of password fields (pwd, password, pass1, pass2, account_password) from POST collection in evaluate_rules().

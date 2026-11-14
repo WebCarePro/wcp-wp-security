@@ -1,7 +1,7 @@
 {
   "name": "WebCare Pro Security & Firewall",
   "slug": "webcare-pro-security",
-  "version": "2.14.0",
+  "version": "2.15.0",
   "requires_wp": "7.0",
   "requires_php": "8.3",
   "download_url": "https://raw.githubusercontent.com/WebCarePro/webcare-pro-security/main/webcare-pro-security.zip",
