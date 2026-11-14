@@ -977,11 +977,6 @@ class ModularFirewallSynthesizer {
     }
 
     /**
-     * Evaluate incoming request against active Modular Rules at WordPress Runtime.
-     *
-     * @return array|null Returns violation array if blocked, null if safe.
-     */
-    /**
      * Activate a 1-click MOD-CVE-* virtual shield for a specific outdated/vulnerable component without waiting for an update.
      */
     public static function activate_cve_shield(string $slug, string $type = 'plugin'): array {
@@ -1127,6 +1122,21 @@ class ModularFirewallSynthesizer {
     }
 
     /**
+     * Normalize firewall action type with safe fail-closed default.
+     *
+     * @param mixed $action Action type input.
+     * @return string Canonical action ('block', 'block_and_ban', 'challenge_pow', 'rate_limit', 'monitor', 'allow').
+     */
+    public static function normalize_action_type(mixed $action): string {
+        if (!is_string($action) || trim($action) === '') {
+            return 'block'; // Safe fail-closed default
+        }
+        $act = strtolower(trim($action));
+        $valid_actions = ['block', 'block_and_ban', 'challenge_pow', 'rate_limit', 'monitor', 'allow'];
+        return in_array($act, $valid_actions, true) ? $act : 'block';
+    }
+
+    /**
      * Evaluate incoming request against active Modular Rules at WordPress Runtime.
      * Covers all 6 synthesized categories plus custom rules & MOD-CVE virtual shields,
      * honors Rescue Mode 15-minute pauses and permanent trusted-action exemptions,
@@ -1209,21 +1219,36 @@ class ModularFirewallSynthesizer {
         $exempt_ids = [];
 
         // Rule-Precedence Model (Block-overrides-Allow):
-        // Partition rules so explicit administrator Block/RateLimit/Challenge/Monitor rules execute ahead of Allow rules,
-        // ensuring Allow rules can never suppress or bypass subsequent Block rules.
-        $sorted_rules = [];
+        // Partition rules by explicit enforcement tiers:
+        // Tier 1: Hard Deny (block, block_and_ban)
+        // Tier 2: Challenge (challenge_pow)
+        // Tier 3: Rate Limiting (rate_limit)
+        // Tier 4: Monitoring (monitor)
+        // Tier 5: Allow (allow)
+        // This guarantees that explicit Block rules ALWAYS execute first and cannot be
+        // preempted or suppressed by Monitor, Challenge, RateLimit, or Allow rules.
+        $block_rules     = [];
+        $challenge_rules = [];
+        $ratelimit_rules = [];
+        $monitor_rules   = [];
+        $allow_rules     = [];
+
         foreach ($rules as $r) {
-            $act = (string) ($r['action_type'] ?? '');
-            if ($act !== 'allow') {
-                $sorted_rules[] = $r;
-            }
-        }
-        foreach ($rules as $r) {
-            $act = (string) ($r['action_type'] ?? '');
+            $act = self::normalize_action_type($r['action_type'] ?? '');
             if ($act === 'allow') {
-                $sorted_rules[] = $r;
+                $allow_rules[] = $r;
+            } elseif ($act === 'challenge_pow') {
+                $challenge_rules[] = $r;
+            } elseif ($act === 'rate_limit') {
+                $ratelimit_rules[] = $r;
+            } elseif ($act === 'monitor') {
+                $monitor_rules[] = $r;
+            } else {
+                $block_rules[] = $r;
             }
         }
+
+        $sorted_rules = array_merge($block_rules, $challenge_rules, $ratelimit_rules, $monitor_rules, $allow_rules);
 
         foreach ($sorted_rules as $r) {
             $mode = $r['current_mode'] ?? 'off';
@@ -1253,54 +1278,67 @@ class ModularFirewallSynthesizer {
             if (!empty($r['is_custom']) || $cat === 'custom') {
                 $matched_custom = false;
 
-                if (!empty($r['conditions']) && is_array($r['conditions']) && class_exists(VisualRuleExpressionEngine::class)) {
-                    if ($visual_ctx === null && class_exists('\\WebCareProScanner\\Contracts\\RequestContext')) {
-                        $visual_ctx = \WebCareProScanner\Contracts\RequestContext::from_globals();
-                    }
-                    if ($visual_ctx !== null) {
-                        $grp_logic      = strtoupper((string) ($r['group_logic'] ?? 'OR')) === 'AND' ? 'AND' : 'OR';
-                        $matched_custom = VisualRuleExpressionEngine::evaluate_groups($r['conditions'], $visual_ctx, $grp_logic);
-                    }
-                } else {
-                    $target_uri_l = strtolower(trim((string) ($r['target_uri'] ?? '')));
-                    $tp           = !empty($r['target_param'])
-                        ? sanitize_key((string) $r['target_param'])
-                        : (($cat === 'ajax_shield' && !empty($r['target_value'])) ? 'action' : '');
-
-                    if ($target_uri_l === '' && $tp === '') {
-                        continue;
-                    }
-
-                    $norm_rest_q = $rest_query !== '' ? '/wp-json/' . ltrim($rest_query, '/') : '';
-                    $uri_match   = ($target_uri_l === '')
-                        || str_contains($clean_uri, $target_uri_l)
-                        || ($rest_query !== '' && (str_contains($rest_query, $target_uri_l) || str_contains($norm_rest_q, $target_uri_l)));
-                    $method_match = empty($methods) || in_array($method, $methods, true);
-                    $param_match  = true;
-
-                    if ($tp !== '') {
-                        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch custom Modular WAF rule inspection
-                        $pv = isset($_REQUEST[$tp]) && is_string($_REQUEST[$tp]) ? strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$tp])))) : '';
-                        if ($pv === '' && is_array($raw_json_data) && isset($raw_json_data[$tp])) {
-                            $pv = strtolower(trim(sanitize_text_field((string) $raw_json_data[$tp])));
+                try {
+                    if (!empty($r['conditions']) && is_array($r['conditions']) && class_exists(VisualRuleExpressionEngine::class)) {
+                        if ($visual_ctx === null && class_exists('\\WebCareProScanner\\Contracts\\RequestContext')) {
+                            $visual_ctx = \WebCareProScanner\Contracts\RequestContext::from_globals();
                         }
-                        $param_match = !empty($r['target_value'])
-                            ? ($pv === strtolower(trim((string) $r['target_value'])))
-                            : ($pv !== '');
+                        if ($visual_ctx !== null) {
+                            $grp_logic      = strtoupper((string) ($r['group_logic'] ?? 'OR')) === 'AND' ? 'AND' : 'OR';
+                            $matched_custom = VisualRuleExpressionEngine::evaluate_groups($r['conditions'], $visual_ctx, $grp_logic);
+                        }
+                    } else {
+                        $target_uri_l = strtolower(trim((string) ($r['target_uri'] ?? '')));
+                        $tp           = !empty($r['target_param'])
+                            ? sanitize_key((string) $r['target_param'])
+                            : (($cat === 'ajax_shield' && !empty($r['target_value'])) ? 'action' : '');
+
+                        if ($target_uri_l === '' && $tp === '') {
+                            continue;
+                        }
+
+                        $norm_rest_q = $rest_query !== '' ? '/wp-json/' . ltrim($rest_query, '/') : '';
+                        $uri_match   = ($target_uri_l === '')
+                            || str_contains($clean_uri, $target_uri_l)
+                            || ($rest_query !== '' && (str_contains($rest_query, $target_uri_l) || str_contains($norm_rest_q, $target_uri_l)));
+                        $method_match = empty($methods) || in_array($method, $methods, true);
+                        $param_match  = true;
+
+                        if ($tp !== '') {
+                            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch custom Modular WAF rule inspection
+                            $pv = isset($_REQUEST[$tp]) && is_string($_REQUEST[$tp]) ? strtolower(trim(sanitize_text_field(wp_unslash($_REQUEST[$tp])))) : '';
+                            if ($pv === '' && is_array($raw_json_data) && isset($raw_json_data[$tp])) {
+                                $pv = strtolower(trim(sanitize_text_field((string) $raw_json_data[$tp])));
+                            }
+                            $param_match = !empty($r['target_value'])
+                                ? ($pv === strtolower(trim((string) $r['target_value'])))
+                                : ($pv !== '');
+                        }
+                        $matched_custom = ($uri_match && $method_match && $param_match);
                     }
-                    $matched_custom = ($uri_match && $method_match && $param_match);
+                } catch (\Throwable $e) {
+                    $matched_custom = false;
                 }
 
                 if ($matched_custom) {
-                    $act = (string) ($r['action_type'] ?? '');
-                    if ($act === '') {
-                        $lim = intval($r['rate_limit'] ?? 0);
-                        $act = (!empty($r['immediate_block']) || $lim <= 0) ? 'block' : 'rate_limit';
+                    $act = self::normalize_action_type($r['action_type'] ?? '');
+                    if (!empty($r['immediate_block']) || ($act === 'rate_limit' && intval($r['rate_limit'] ?? 0) <= 0)) {
+                        $act = 'block';
                     }
 
                     if ($act === 'allow') {
                         $ex = is_array($r['exempt_rules'] ?? null) ? $r['exempt_rules'] : [];
-                        if (empty($ex)) {
+                        $clean_ex = [];
+                        $non_exemptible = ['SQLI-CORE', 'RCE-EXEC', 'LFI-PATH', 'RECON-DOT', 'WAF-SQLI-INJECTION', 'WAF-PHP-CODE-INJECTION', 'WAF-XSS-ARMOR', 'WAF-LFI-INJECTION'];
+                        foreach ($ex as $vei) {
+                            if (is_string($vei)) {
+                                $vei_c = trim($vei);
+                                if ($vei_c !== '' && !in_array($vei_c, $non_exemptible, true)) {
+                                    $clean_ex[] = $vei_c;
+                                }
+                            }
+                        }
+                        if (empty($clean_ex)) {
                             if ($mode === 'enforce' && !$is_rescue_paused) {
                                 return [
                                     'rule_id'      => $r['id'],
@@ -1319,9 +1357,9 @@ class ModularFirewallSynthesizer {
                                 'info'
                             );
                         } else {
-                            $exempt_ids = array_values(array_unique(array_merge($exempt_ids, $ex)));
+                            $exempt_ids = array_values(array_unique(array_merge($exempt_ids, $clean_ex)));
                             if ($mode === 'enforce' && !$is_rescue_paused) {
-                                self::$runtime_exempt_rule_ids = array_values(array_unique(array_merge(self::$runtime_exempt_rule_ids, $ex)));
+                                self::$runtime_exempt_rule_ids = array_values(array_unique(array_merge(self::$runtime_exempt_rule_ids, $clean_ex)));
                             }
                         }
                         continue;

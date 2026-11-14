@@ -1,4 +1,17 @@
 ﻿v:2.14.0 - 2026-11-14
+- Comprehensive Block-Overrides-Allow Architecture & Path Normalization Parity:
+  * Strict Block-Overrides-Allow Precedence across Pre-Boot & Runtime:
+    - Partitioned visual and custom modular rules into explicit priority tiers ($v_block_rules ahead of $v_allow_rules in pre-boot; $block_rules, $challenge_rules, $ratelimit_rules, $monitor_rules, and $allow_rules in runtime).
+    - An earlier matching Allow rule can never suppress, bypass, or prevent subsequent explicit Block rules from executing across both rule evaluation orders (Allow-first vs. Block-first).
+    - Fail-closed action normalization (ModularFirewallSynthesizer::normalize_action_type()) trims and lowercases action names, safely failing closed to 'block' on unrecognized, missing, or malformed action parameters.
+    - Added defensive exception handling around condition evaluations, failing closed to matched=false if unexpected inputs occur.
+    - Sanitized exempt_rules to reject any attempts to exempt core mandatory exploit signatures (SQLI-CORE, RCE-EXEC, LFI-PATH, RECON-DOT, WAF-SQLI-INJECTION, etc.).
+  * Canonical Path & Multi-Pass URL Decoding Parity (Section 5.5 Guidelines):
+    - Added RFC 3986 dot-segment (/./, /../) and consecutive slash (//) path normalization across both RequestContext ($ctx->cleanUri) and MicroWafCompiler ($mod_clean_uri), preventing dot-segment path evasion against explicit Block rules and URL allowlists.
+    - Implemented multi-pass URL decoding in MicroWafCompiler ($target_text), ensuring double URL-encoded exploit payloads (%2520 -> %20 -> space) cannot evade mandatory exploit signatures in early pre-boot.
+  * Dedicated Guidelines & Adversarial Test Suites:
+    - Authored comprehensive test runner verifying all 7 sections of the Block-overrides-Allow guidelines: Action Normalization, Pre-Boot Partitioning, all 8 Visual Permutations, Mandatory Exploit Non-Bypassability, Modular Action Pairs, Exemption Scope Integrity, and Request Normalization / Evasion Resistance. 46/46 assertions verified passing.
+    - Re-verified ChatGPT adversarial failure-injection suite: 49/49 assertions passing.
 - Rule-Precedence Model Hardening & Block-Overrides-Allow Enforcement (P1 Follow-up):
   * Pre-Boot Micro-WAF Rule Precedence (MicroWafCompiler.php):
     - Partitioned visual rules into $v_sorted_rules so all explicit administrator Block rules execute ahead of Allow rules.

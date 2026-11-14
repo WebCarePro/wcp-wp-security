@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-14T13:03:10.401Z",
+  "generated_at": "2026-11-14T13:29:50.884Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -268,8 +268,8 @@
       "size": 3658
     },
     "includes/Contracts/RequestContext.php": {
-      "sha256": "353c8a4cf74017b6d4a5701a020deae21aa6962421ea2cf39c8a39549e07d0c8",
-      "size": 9307
+      "sha256": "830037ca1f219c8fd21d289753caf86c2c2604ca8857cde0c9ed19eb5caa1987",
+      "size": 9957
     },
     "includes/Contracts/SecurityModuleInterface.php": {
       "sha256": "86e9dc6bef5e87d0dac20cf170fdede325bb721c51258867360c1197f8741214",
@@ -472,8 +472,8 @@
       "size": 15983
     },
     "includes/Firewall/MicroWafCompiler.php": {
-      "sha256": "4eec1b12bc725a9d2261ca3108d57652d6a5ee93d7f2aec0639309879ce01df4",
-      "size": 87325
+      "sha256": "928bfceee79c939c8d94b063396a8605a2df7fe7dbfb9e46c48b11fc1dc0c689",
+      "size": 89391
     },
     "includes/Firewall/Modular/BehavioralVaultManager.php": {
       "sha256": "c70eec9f734ed625a478e464a130205f74cb533ed824db3d3f44efd7153db99b",
@@ -484,8 +484,8 @@
       "size": 51311
     },
     "includes/Firewall/Modular/ModularFirewallSynthesizer.php": {
-      "sha256": "c172b72967e0f04cf66065edc9388da029b836aae3d47ba71f8ab8843a6baae8",
-      "size": 101307
+      "sha256": "12a8bc0838ad38e0e8db5426b247c21680c85145b8aac881c45b30695ca634fd",
+      "size": 103314
     },
     "includes/Firewall/Modular/SiteBehavioralAnalyzer.php": {
       "sha256": "c92c4636037957bc1b7b871da2851fa4680562829ade6269f2ca0eaf2ec89879",

@@ -98,7 +98,24 @@ class RequestContext {
         $raw_uri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash($_SERVER['REQUEST_URI']) : '';
         $ctx->uri = sanitize_text_field($raw_uri);
         $q_pos    = strpos($raw_uri, '?');
-        $ctx->cleanUri = strtolower(sanitize_text_field($q_pos === false ? $raw_uri : substr($raw_uri, 0, $q_pos)));
+        $raw_clean = strtolower(sanitize_text_field($q_pos === false ? $raw_uri : substr($raw_uri, 0, $q_pos)));
+        if (strpos($raw_clean, '/.') !== false || strpos($raw_clean, '//') !== false) {
+            $raw_clean = preg_replace('#/+#', '/', $raw_clean);
+            $p_parts = explode('/', $raw_clean);
+            $p_stack = [];
+            foreach ($p_parts as $p_seg) {
+                if ($p_seg === '' || $p_seg === '.') {
+                    continue;
+                }
+                if ($p_seg === '..') {
+                    array_pop($p_stack);
+                } else {
+                    $p_stack[] = $p_seg;
+                }
+            }
+            $raw_clean = '/' . implode('/', $p_stack);
+        }
+        $ctx->cleanUri = $raw_clean;
         $ctx->query    = $q_pos === false ? '' : sanitize_text_field(substr($raw_uri, $q_pos + 1));
 
         $ctx->userAgent    = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
