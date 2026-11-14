@@ -1,4 +1,12 @@
 ﻿v:2.14.0 - 2026-11-14
+- Unredacted Mandatory Exploit Payloads & Schema-Aware Heuristic Masking (P1 Fix):
+  * Guaranteed that $params_to_check, $combined_payload, and $decoded_combined remain 100% unredacted across all requests, ensuring mandatory exploit signatures (SQLi, RCE, LFI, PHP Object Injection, SSRF, null-byte poison) inspect every submitted field, including nested metadata.pattern and rule conditions without modification.
+  * Replaced global recursive key stripping in redact_waf_config_expressions() with schema-aware masking restricted to top-level and known container paths (settings, firewall_settings, rule, rules), preventing arbitrary nested keys from being inadvertently masked.
+  * Built an isolated $heuristic_combined / $heuristic_decoded representation exclusively evaluated by heuristic sentinels (WAF-XSS-PAYLOAD and WAF-AI-PROMPT-INJECTION), ensuring administrators can configure security rules containing <script or prompt syntax without false positives while preventing self-blocking.
+- Write-Only Content Authoring & Builder Safe-Pass Gating (P2 Fix):
+  * Hardened is_verified_editor_builder_request() and is_authenticated_editor_or_builder() to enforce an early state-changing write-method requirement (POST, PUT, PATCH), completely eliminating content-authoring exemptions on GET requests (such as /wp-json/wp/v2/posts or /wp-json/elementor/).
+  * Constrained Gutenberg and REST authoring detection to exact regex patterns matching post/page/block write endpoints (#/wp-json/(?:wp/v2/(?:posts|pages|blocks|templates|template-parts)(?:/\d+)?|elementor/v\d+/)#i) with verified nonces.
+  * Verified 5 adversarial privilege-boundary regression test scenarios passing with zero defects.
 - Two-Tier Privilege Architecture, Fail-Closed Evaluator & Action Ranking Hardening (Review Findings):
   * Two-Tier Privilege Separation for Authenticated Administrators & Page Builders (Finding 1):
     - Removed early pipeline and evaluate_rules() returns for authenticated administrators and page builders.

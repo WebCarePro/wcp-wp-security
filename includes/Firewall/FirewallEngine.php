@@ -648,6 +648,13 @@ class FirewallEngine {
      * Safe-pass verification for authenticated Editors, Authors, and Shop Managers in page builder/REST contexts (WCP-16).
      */
     public static function is_verified_editor_builder_request(string $request_uri): bool {
+        $req_method = isset($_SERVER['REQUEST_METHOD'])
+            ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])))
+            : 'GET';
+        if (!in_array($req_method, ['POST', 'PUT', 'PATCH'], true)) {
+            return false;
+        }
+
         if (!function_exists('is_user_logged_in') || !is_user_logged_in()) {
             return false;
         }
@@ -656,27 +663,36 @@ class FirewallEngine {
             return false;
         }
 
-        $is_rest_builder = str_contains($request_uri, '/wp-json/wp/v2/')
-            || str_contains($request_uri, '/wp-json/elementor/');
+        $parsed_path = (string) (wp_parse_url($request_uri, PHP_URL_PATH) ?? '');
+        $is_rest_authoring = (bool) preg_match(
+            '#/wp-json/(?:wp/v2/(?:posts|pages|blocks|templates|template-parts)(?:/\d+)?|elementor/v\d+/)#i',
+            $parsed_path
+        );
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $req_action = isset($_REQUEST['action']) ? sanitize_key((string) $_REQUEST['action']) : '';
-        $is_ajax_builder = str_contains($request_uri, 'admin-ajax.php')
-            && ($req_action === 'elementor_ajax' || str_starts_with($req_action, 'elementor_'));
+        $is_ajax_builder = str_contains($parsed_path, 'admin-ajax.php')
+            && in_array($req_action, ['elementor_ajax', 'elementor_save_builder'], true);
 
-        if (!$is_rest_builder && !$is_ajax_builder) {
+        if (!$is_rest_authoring && !$is_ajax_builder) {
             return false;
         }
 
         // Verify standard WP REST nonce or Elementor AJAX nonce
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $rest_nonce = isset($_SERVER['HTTP_X_WP_NONCE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE'])) : (isset($_REQUEST['_wpnonce']) ? sanitize_text_field(wp_unslash($_REQUEST['_wpnonce'])) : '');
-        if ($is_rest_builder && $rest_nonce !== '' && function_exists('wp_verify_nonce')) {
+        $rest_nonce = isset($_SERVER['HTTP_X_WP_NONCE'])
+            ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE']))
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            : (isset($_REQUEST['_wpnonce']) ? sanitize_text_field(wp_unslash($_REQUEST['_wpnonce'])) : '');
+        if ($is_rest_authoring && $rest_nonce !== '' && function_exists('wp_verify_nonce')) {
             return (bool) wp_verify_nonce($rest_nonce, 'wp_rest');
         }
 
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $ajax_nonce = isset($_REQUEST['editor_post_id']) ? sanitize_text_field(wp_unslash($_REQUEST['editor_post_id'])) : (isset($_REQUEST['_nonce']) ? sanitize_text_field(wp_unslash($_REQUEST['_nonce'])) : (isset($_REQUEST['nonce']) ? sanitize_text_field(wp_unslash($_REQUEST['nonce'])) : ''));
+        $ajax_nonce = isset($_REQUEST['_nonce'])
+            ? sanitize_text_field(wp_unslash($_REQUEST['_nonce']))
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            : (isset($_REQUEST['nonce']) ? sanitize_text_field(wp_unslash($_REQUEST['nonce'])) : '');
         if ($is_ajax_builder && $ajax_nonce !== '' && function_exists('wp_verify_nonce')) {
             return (bool) (wp_verify_nonce($ajax_nonce, 'elementor_ajax') || wp_verify_nonce($ajax_nonce, 'wp_rest'));
         }
@@ -699,6 +715,12 @@ class FirewallEngine {
         static $cached_builder_result = null;
         if ($cached_builder_result !== null) {
             return $cached_builder_result;
+        }
+
+        // Require a state-changing write method before granting WAF authoring exemption (Fix 2)
+        $request_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'GET';
+        if (!in_array($request_method, ['POST', 'PUT', 'PATCH'], true)) {
+            return ($cached_builder_result = false);
         }
 
         // Check if page builder smart pass is enabled in settings
@@ -754,36 +776,33 @@ class FirewallEngine {
             return ($cached_builder_result = false);
         }
 
-        // On state-changing methods, require a valid REST or builder/admin nonce before granting WAF bypass
-        $request_method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'GET';
-        if (in_array($request_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
-            $nonce = '';
-            if (!empty($_SERVER['HTTP_X_WP_NONCE'])) {
-                $nonce = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE']));
-            } elseif (!empty($_REQUEST['_wpnonce'])) {
-                // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-                $nonce = sanitize_text_field(wp_unslash($_REQUEST['_wpnonce']));
-            } elseif (!empty($_REQUEST['editor_post_nonce'])) {
-                // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-                $nonce = sanitize_text_field(wp_unslash($_REQUEST['editor_post_nonce']));
-            }
+        // Require valid REST or builder nonce before granting WAF authoring exemption (Fix 2)
+        $nonce = '';
+        if (!empty($_SERVER['HTTP_X_WP_NONCE'])) {
+            $nonce = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE']));
+        } elseif (!empty($_REQUEST['_wpnonce'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $nonce = sanitize_text_field(wp_unslash($_REQUEST['_wpnonce']));
+        } elseif (!empty($_REQUEST['editor_post_nonce'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $nonce = sanitize_text_field(wp_unslash($_REQUEST['editor_post_nonce']));
+        }
 
-            if (!function_exists('wp_verify_nonce') && defined('ABSPATH') && file_exists(ABSPATH . 'wp-includes/pluggable.php')) {
-                require_once ABSPATH . 'wp-includes/pluggable.php';
-            }
+        if (!function_exists('wp_verify_nonce') && defined('ABSPATH') && file_exists(ABSPATH . 'wp-includes/pluggable.php')) {
+            require_once ABSPATH . 'wp-includes/pluggable.php';
+        }
 
-            $nonce_valid = false;
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
-            $action_hint = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
-            if ($nonce !== '' && function_exists('wp_verify_nonce')) {
-                if (wp_verify_nonce($nonce, 'wp_rest') || wp_verify_nonce($nonce, 'elementor_ajax') || wp_verify_nonce($nonce, -1) || ($action_hint !== '' && wp_verify_nonce($nonce, 'wp_ajax_' . $action_hint))) {
-                    $nonce_valid = true;
-                }
+        $nonce_valid = false;
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
+        $action_hint = isset($_POST['action']) ? sanitize_text_field(wp_unslash($_POST['action'])) : (isset($_GET['action']) ? sanitize_text_field(wp_unslash($_GET['action'])) : '');
+        if ($nonce !== '' && function_exists('wp_verify_nonce')) {
+            if (wp_verify_nonce($nonce, 'wp_rest') || wp_verify_nonce($nonce, 'elementor_ajax') || wp_verify_nonce($nonce, -1) || ($action_hint !== '' && wp_verify_nonce($nonce, 'wp_ajax_' . $action_hint))) {
+                $nonce_valid = true;
             }
+        }
 
-            if (!$nonce_valid) {
-                return ($cached_builder_result = false);
-            }
+        if (!$nonce_valid) {
+            return ($cached_builder_result = false);
         }
 
         // Identify builder-specific actions and endpoints
@@ -795,12 +814,10 @@ class FirewallEngine {
             ? \WebCareProScanner\Firewall\CAF\AdaptiveFirewallAdvisor::has_ecosystem('page_builder')
             : true;
 
-        $is_gutenberg_rest = (
-            strpos($request_uri, '/wp-json/wp/v2/posts') !== false ||
-            strpos($request_uri, '/wp-json/wp/v2/pages') !== false ||
-            strpos($request_uri, '/wp-json/wp/v2/blocks') !== false ||
-            strpos($request_uri, '/wp-json/wp/v2/templates') !== false ||
-            strpos($request_uri, '/wp-json/wp/v2/template-parts') !== false
+        $parsed_builder_path = (string) (wp_parse_url($request_uri, PHP_URL_PATH) ?? '');
+        $is_gutenberg_rest = (bool) preg_match(
+            '#/wp-json/wp/v2/(?:posts|pages|blocks|templates|template-parts)(?:/\d+)?#i',
+            $parsed_builder_path
         );
 
         $is_builder_ajax    = false;
@@ -2180,7 +2197,7 @@ class FirewallEngine {
         }
 
         $is_builder_saving_action  = self::is_authenticated_editor_or_builder();
-        $is_privileged_html_author = ($is_core_post_editor_save || $is_builder_saving_action || $is_waf_config_write);
+        $is_privileged_html_author = ($is_core_post_editor_save || $is_builder_saving_action);
 
         // Combine request parameters for deep inspection (inspect raw inputs so WAF sees malicious script tags or encoding before sanitization)
         $params_to_check = [];
@@ -2199,9 +2216,6 @@ class FirewallEngine {
         if (!empty($_POST) && is_array($_POST)) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
             $post_data = wp_unslash($_POST);
-            if ($is_waf_config_write) {
-                $post_data = self::redact_waf_config_expressions($post_data);
-            }
             // Mask scalar password fields from generic regex false-positives unless containing explicit SQLi or null-byte exploits
             foreach (['pwd', 'password', 'pass1', 'pass2', 'account_password'] as $pw_field) {
                 if (isset($post_data[$pw_field]) && is_string($post_data[$pw_field]) && strlen($post_data[$pw_field]) <= 128) {
@@ -2246,16 +2260,6 @@ class FirewallEngine {
                         return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
                     }, $normalized_body);
                 }
-                // If this is a verified WAF config write, redact only the explicit rule expression/regex keys
-                // from the inspected payload copy so legitimate WAF rules never trigger false positives,
-                // while all other fields, headers, cookies, and URIs remain 100% strictly inspected.
-                if ($is_waf_config_write) {
-                    $json_data = json_decode($normalized_body, true);
-                    if (is_array($json_data)) {
-                        $sanitized_json = self::redact_waf_config_expressions($json_data);
-                        $normalized_body = (string) json_encode($sanitized_json);
-                    }
-                }
                 $params_to_check[] = $normalized_body;
 
                 // REST API Batch & Method-Override Normalization (CVE-2026-63030 / CVE-2026-60137 chain defense)
@@ -2269,14 +2273,7 @@ class FirewallEngine {
             if ($content_len > 262144) {
                 $raw_tail = (string) @file_get_contents('php://input', false, null, max(0, $content_len - 65536), 65536);
                 if ($raw_tail !== '') {
-                    $tail_body = wp_unslash($raw_tail);
-                    if ($is_waf_config_write) {
-                        $json_tail = json_decode($tail_body, true);
-                        if (is_array($json_tail)) {
-                            $tail_body = (string) json_encode(self::redact_waf_config_expressions($json_tail));
-                        }
-                    }
-                    $params_to_check[] = $tail_body;
+                    $params_to_check[] = wp_unslash($raw_tail);
                 }
             }
         }
@@ -2296,6 +2293,41 @@ class FirewallEngine {
             $decoded_combined = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
                 return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
             }, $decoded_combined);
+        }
+
+        // Schema-aware heuristic payload representation exclusively for XSS and AI-Prompt sentinels (Fix 1)
+        // Mandatory exploit signatures (SQLi, RCE, LFI, Object Injection, SSRF) always inspect 100% unredacted $combined_payload
+        $heuristic_combined = $combined_payload;
+        $heuristic_decoded  = $decoded_combined;
+
+        if ($is_waf_config_write) {
+            $heuristic_post = !empty($_POST) && is_array($_POST)
+                ? self::redact_waf_config_expressions(wp_unslash($_POST), $resolved_rest_route)
+                : [];
+            $heuristic_body_str = '';
+            if (!empty($raw_head)) {
+                $h_json = json_decode(wp_unslash($raw_head), true);
+                if (is_array($h_json)) {
+                    $heuristic_body_str = (string) wp_json_encode(
+                        self::redact_waf_config_expressions($h_json, $resolved_rest_route)
+                    );
+                }
+            }
+            $heuristic_combined = trim(implode(' ', array_filter([
+                $query_string,
+                !empty($heuristic_post) ? rawurldecode(http_build_query($heuristic_post, '', '&', PHP_QUERY_RFC3986)) : '',
+                $heuristic_body_str,
+                $user_agent,
+                $referer !== '' ? rawurldecode($referer) : '',
+            ])));
+            $heuristic_decoded = str_replace('+', ' ', $heuristic_combined);
+            for ($h_i = 0; $h_i < 2; $h_i++) {
+                $prev_h = $heuristic_decoded;
+                $heuristic_decoded = str_replace('+', ' ', rawurldecode($heuristic_decoded));
+                if ($heuristic_decoded === $prev_h) {
+                    break;
+                }
+            }
         }
 
         // 1. Path Traversal & LFI/RFI
@@ -2400,14 +2432,14 @@ class FirewallEngine {
         // 4. Cross-Site Scripting (XSS)
         // Exempt verified administrators and page builders authoring rich HTML/SVG post layouts from XSS false positives
         if (!$is_privileged_html_author && !empty($settings['waf_block_xss'])) {
-            $xss_payload_stripped = preg_replace('/[\x00-\x20]+/', '', $combined_payload);
+            $xss_payload_stripped = preg_replace('/[\x00-\x20]+/', '', $heuristic_combined);
             if (preg_match('/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/is', $xss_payload_stripped)) {
                 return [
                     'id'          => 'WAF-XSS-PAYLOAD',
                     'name'        => 'Cross-Site Scripting (XSS) Shield',
                     'category'    => 'Cross-Site Scripting (XSS)',
                     'description' => 'Obfuscated javascript: or data:text/html URI payload detected.',
-                    'payload'     => substr($combined_payload, 0, 200),
+                    'payload'     => substr($heuristic_combined, 0, 200),
                 ];
             }
 
@@ -2419,13 +2451,13 @@ class FirewallEngine {
                 '/(?:<[^>]+?\s|\b)on(?:error|load|mouseover|mouseenter|mouseleave|click|dblclick|auxclick|contextmenu|focus|blur|pointerenter|pointerover|pointerdown|toggle|beforetoggle|animationstart|animationend|animationiteration|transitionend|begin|pageshow|pagehide|input|invalid|submit|reset|wheel|drag|drop|copy|cut|paste)\s*=\s*(?:[\'"`][^\'"`]*?(?:\(|javascript:|alert|confirm|prompt|eval|fetch|document\.|window\.|location)|[^\s>&\'"`]+?\()/is',
             ];
             foreach ($xss_patterns as $pattern) {
-                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload) || preg_match($pattern, $decoded_combined)) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $heuristic_combined) || preg_match($pattern, $heuristic_decoded)) {
                     return [
                         'id'          => 'WAF-XSS-PAYLOAD',
                         'name'        => 'Cross-Site Scripting (XSS) Shield',
                         'category'    => 'Cross-Site Scripting (XSS)',
                         'description' => 'Hostile JavaScript injection or payload tag detected.',
-                        'payload'     => substr($combined_payload, 0, 200),
+                        'payload'     => substr($heuristic_combined, 0, 200),
                     ];
                 }
             }
@@ -2456,13 +2488,13 @@ class FirewallEngine {
                 '/\b(dump|output|exfiltrate)\s+(the\s+)?(contents\s+of\s+)?(wp-config\.php|passwd|database\s+credentials)\b/i',
             ];
             foreach ($prompt_patterns as $pattern) {
-                if (preg_match($pattern, $uri) || preg_match($pattern, $combined_payload)) {
+                if (preg_match($pattern, $uri) || preg_match($pattern, $heuristic_combined) || preg_match($pattern, $heuristic_decoded)) {
                     return [
                         'id'          => 'WAF-AI-PROMPT-INJECTION',
                         'name'        => 'AI Prompt Injection & Agent Poisoning Shield (Rule #35)',
                         'category'    => 'AI & Agent Defense',
                         'description' => 'Hostile LLM prompt-injection / tool-poisoning syntax detected in request payload.',
-                        'payload'     => substr($combined_payload, 0, 200),
+                        'payload'     => substr($heuristic_combined, 0, 200),
                     ];
                 }
             }
@@ -9730,14 +9762,16 @@ class FirewallEngine {
     }
 
     /**
-     * Recursively mask known WAF rule regex / pattern expression fields during verified admin settings writes
-     * so configuring security patterns does not self-block, while preserving deep inspection on all other keys.
+     * Schema-aware masking of known WAF rule regex / pattern expression fields during verified admin settings writes
+     * so configuring security patterns does not self-block on heuristic checks (XSS/AI-Prompt),
+     * while preserving deep inspection on all other keys and never masking arbitrary nested metadata.
      *
-     * @param array $data Input payload data.
-     * @return array Data with expression fields redacted.
+     * @param array  $data Input payload data.
+     * @param string $rest_route Resolved REST route.
+     * @return array Data with top-level and container expression fields redacted.
      */
-    public static function redact_waf_config_expressions(array $data): array {
-        $keys_to_redact = [
+    public static function redact_waf_config_expressions(array $data, string $rest_route = ''): array {
+        $top_level_rule_keys = [
             'conditions',
             'wirefilter',
             'expression',
@@ -9747,14 +9781,26 @@ class FirewallEngine {
             'waf_targeted_allowlist_rules',
             'waf_allowed_host_aliases',
         ];
-        foreach ($data as $k => $v) {
-            $k_lower = is_string($k) ? strtolower($k) : '';
-            if (in_array($k_lower, $keys_to_redact, true)) {
-                unset($data[$k]);
-            } elseif (is_array($v)) {
-                $data[$k] = self::redact_waf_config_expressions($v);
+
+        foreach ($top_level_rule_keys as $rk) {
+            if (array_key_exists($rk, $data)) {
+                unset($data[$rk]);
             }
         }
+
+        // Known nested containers used by /settings, /wizard/save, and /modular-waf/rule/custom
+        foreach (['settings', 'firewall_settings', 'rule', 'rules'] as $container_key) {
+            if (isset($data[$container_key]) && is_array($data[$container_key])) {
+                foreach ($top_level_rule_keys as $rk) {
+                    unset($data[$container_key][$rk]);
+                }
+                // For /modular-waf/rule/custom condition groups: conditions[*].rules[*].value
+                if ($container_key === 'rule' && isset($data['rule']['conditions'])) {
+                    unset($data['rule']['conditions']);
+                }
+            }
+        }
+
         return $data;
     }
 
