@@ -3,6 +3,7 @@
   * WCP-01 & WCP-10 (Atomic DB-First Quarantine & Verified Stream Handling):
     - Guaranteed zero data loss by recording quarantine metadata in the database before deleting original files; failed DB inserts immediately preserve the source file.
     - Added byte count and SHA-256 verification on >20 MB stream copy operations during both quarantine and restore.
+    - Added TOCTOU symlink substitution checks in QuarantineManager and RemediationManager immediately prior to deletion.
     - Resolved restore blocking for false-positive unknown files in wp-admin/ and wp-includes/ while strictly preventing overwriting official WordPress.org checksum files.
     - Normalized permission restoration across file_permissions and file_perms properties.
   * WCP-08 & WCP-09 (Rogue File Deletion & 14-Day Vault Backup Guarantee):
@@ -11,6 +12,7 @@
     - Added stream backup support for >20 MB files with try/catch encryption exception safety and time-based retention pruning (>14 days).
   * WCP-02 (Trusted Proxy GeoIP & ASN Header Validation):
     - Gated HTTP_CF_IPCOUNTRY, HTTP_CF_IPASN, and HTTP_CF_RAY extraction in MicroWafCompiler, RequestContext, and VisualRuleExpressionEngine strictly behind verified Cloudflare or custom proxy CIDRs, preventing forged header bypasses on direct-to-origin traffic.
+    - Hardened FirewallEngine::ip_in_range() and is_trusted_proxy() to strictly reject malformed CIDR masks and normalize IPv4-mapped IPv6 proxies (::ffff:x.x.x.x).
   * WCP-03 (Outbound SSRF Loopback Guard Hardening):
     - Stripped request-controlled HTTP_HOST from outbound allowed web ports.
     - Required both an authorized WordPress loopback path and a verified site port for same-host requests, blocking internal SSRF attacks targeting sensitive services (e.g. Redis, Docker, Consul).

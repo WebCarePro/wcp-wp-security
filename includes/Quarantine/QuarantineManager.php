@@ -53,10 +53,13 @@ class QuarantineManager {
     public function quarantine_file($file_path, $scan_id = null, $issue_id = null) {
         global $wpdb;
 
-        // Ensure path is normalized and exists
+        // Ensure path is normalized, exists, and is not a symlink
+        if (is_link($file_path)) {
+            return ['success' => false, 'message' => 'Security violation: Symlinks cannot be quarantined.'];
+        }
         $real_path = realpath($file_path);
-        if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
-            return ['success' => false, 'message' => 'Target file does not exist or is a directory.'];
+        if (!$real_path || !file_exists($real_path) || is_dir($real_path) || is_link($real_path)) {
+            return ['success' => false, 'message' => 'Target file does not exist, is a directory, or is a symbolic link.'];
         }
 
         // Security check: Must reside within WordPress installation root with directory boundary check
@@ -258,6 +261,17 @@ class QuarantineManager {
             return [
                 'success' => false,
                 'message' => 'Database error: Could not record quarantine entry. Original file was left untouched.',
+            ];
+        }
+
+        // TOCTOU Symlink Replacement Check: ensure target has not been replaced with a symlink prior to deletion
+        if (is_link($real_path) || is_link($file_path)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->delete($table, ['id' => $quarantine_id], ['%d']);
+            wp_delete_file($dest_path);
+            return [
+                'success' => false,
+                'message' => 'Security violation: Symlink substitution detected during quarantine; operation safely aborted.',
             ];
         }
 

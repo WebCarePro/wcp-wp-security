@@ -295,6 +295,14 @@ class FirewallEngine {
      * @return bool
      */
     public static function is_trusted_proxy(string $ip): bool {
+        $ip = trim($ip);
+        if (stripos($ip, '::ffff:') === 0) {
+            $mapped_v4 = substr($ip, 7);
+            if (filter_var($mapped_v4, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $ip = $mapped_v4;
+            }
+        }
+
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
             return false;
         }
@@ -3251,12 +3259,25 @@ class FirewallEngine {
         $ip = trim($ip);
         $range = trim($range);
 
+        // Normalize IPv4-mapped IPv6 address (::ffff:x.x.x.x)
+        if (stripos($ip, '::ffff:') === 0) {
+            $mapped_v4 = substr($ip, 7);
+            if (filter_var($mapped_v4, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $ip = $mapped_v4;
+            }
+        }
+
         if (strpos($range, '/') === false) {
             return $ip === $range;
         }
 
-        list($subnet, $bits) = explode('/', $range, 2);
-        $bits = (int) $bits;
+        $parts = explode('/', $range, 2);
+        if (count($parts) !== 2 || !ctype_digit(trim($parts[1]))) {
+            return false;
+        }
+
+        $subnet = trim($parts[0]);
+        $bits = (int) trim($parts[1]);
 
         // IPv4 check
         if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {

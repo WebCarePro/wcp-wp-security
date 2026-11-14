@@ -418,8 +418,8 @@ class RemediationManager {
                 $real_path = realpath($candidate);
             }
         }
-        if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
-            return ['success' => false, 'message' => __('Target file does not exist on server.', 'webcare-pro-security')];
+        if (is_link($file_path) || !$real_path || !file_exists($real_path) || is_dir($real_path) || is_link($real_path)) {
+            return ['success' => false, 'message' => __('Target file does not exist, is a directory, or is a symbolic link.', 'webcare-pro-security')];
         }
         $normalized_real = wp_normalize_path($real_path);
 
@@ -633,8 +633,8 @@ class RemediationManager {
                 $real_path = realpath($candidate);
             }
         }
-        if (!$real_path || !file_exists($real_path) || is_dir($real_path)) {
-            return ['success' => false, 'message' => __('Target file does not exist on server.', 'webcare-pro-security')];
+        if (is_link($file_path) || !$real_path || !file_exists($real_path) || is_dir($real_path) || is_link($real_path)) {
+            return ['success' => false, 'message' => __('Target file does not exist, is a directory, or is a symbolic link.', 'webcare-pro-security')];
         }
 
         if (!\WebCareProScanner\Filesystem\PathValidator::is_inside_root($real_path, ABSPATH)) {
@@ -711,6 +711,14 @@ class RemediationManager {
             ];
         }
         $backup_id = $backup_res['backup_id'];
+
+        // TOCTOU Symlink Replacement Check: verify target has not been substituted with a symlink
+        if (is_link($real_path) || is_link($file_path)) {
+            return [
+                'success' => false,
+                'message' => __('Action Aborted: Symlink substitution detected immediately prior to deletion; file left untouched.', 'webcare-pro-security'),
+            ];
+        }
 
         // 6. Unlink the file and verify removal
         $unlinked = wp_delete_file($real_path);

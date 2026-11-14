@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-14T00:10:43.200Z",
+  "generated_at": "2026-11-14T00:18:04.119Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -444,8 +444,8 @@
       "size": 14728
     },
     "includes/Firewall/FirewallEngine.php": {
-      "sha256": "99a03c4865b8680e3641516135a9257683da867e1ca4713beffd64eeaa9e99af",
-      "size": 483882
+      "sha256": "55aa1391f69b2dbff34909a0d71f8fb02713c1f1623506ce02319e416025b5d3",
+      "size": 484556
     },
     "includes/Firewall/FormSpamProtectionEngine.php": {
       "sha256": "f9d0f081344e76328eb2a5cc8c65823363f40b40e0690a8d37d2c50cded27d7a",
@@ -688,16 +688,16 @@
       "size": 1192
     },
     "includes/Quarantine/QuarantineManager.php": {
-      "sha256": "0e48953f6e348889b491c59a43383c1b18506be36fd333915b3b10517f3a0577",
-      "size": 36260
+      "sha256": "ee26e63121ac3c5ff771d9c7d9586b4b380edf7f6d8e8a0127e7c8262425a03d",
+      "size": 37085
     },
     "includes/Quarantine/ReinfectionWatchdog.php": {
       "sha256": "15a66c5701f26bbf4aef407442f347aa315049f27c8c82d566c6353afcf31cbb",
       "size": 16006
     },
     "includes/Remediation/RemediationManager.php": {
-      "sha256": "142bd4909724d338870fd582be682ba26fcf03c473ff3bd57554774d1682aaee",
-      "size": 58998
+      "sha256": "6d771cf52e459dff19de59f55e7d43efb9a71f5517716ec3e71e1bf04a370be5",
+      "size": 59546
     },
     "includes/Remediation/TransactionalRemediation.php": {
       "sha256": "0fa547fabeb682ba219bb00e58d6871c42411ee6a6973e09f4421d11ca5e3c4b",
