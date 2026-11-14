@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-14T12:17:21.881Z",
+  "generated_at": "2026-11-14T12:49:22.547Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -472,8 +472,8 @@
       "size": 15983
     },
     "includes/Firewall/MicroWafCompiler.php": {
-      "sha256": "dc861971eae7c7c1b09c25a76e8ea6b107a64673618ea15bb652c876e4de133c",
-      "size": 85899
+      "sha256": "6ce27bdbfc2dff4db2befcb7f5f51b4765ab9a2c92fea2f4cff3f157afc5e982",
+      "size": 86306
     },
     "includes/Firewall/Modular/BehavioralVaultManager.php": {
       "sha256": "c70eec9f734ed625a478e464a130205f74cb533ed824db3d3f44efd7153db99b",

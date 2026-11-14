@@ -1,9 +1,14 @@
 ﻿v:2.14.0 - 2026-11-14
-- Namespace Resolution & Pre-Boot Custom Rule Allowlist Hardening (Argon Review):
+- Non-Bypassable Exploit Signatures & Granular Visual Rule Scoping (P0/P1 Review Hardening):
+  * Mandatory Exploit Signatures Unconditional Enforcement (P0):
+    - Replaced closure-terminating early return in MicroWafCompiler.php on matching Visual allow rules (empty($v_ex)) with $vis_allow_all_custom = true; break;. This skips subsequent configurable visual and modular checks while falling through to execute mandatory exploit signatures.
+    - Completely removed $vis_exempt_ids filter from the pre-boot $signatures execution loop. Core zero-tolerance exploit signatures (SQLi, RCE, LFI, Recon) now execute unconditionally on 100% of requests and are strictly non-bypassable by any custom allow rule, exemption ID, or allowlist.
+  * Granular URL Allowlist Scoping vs. Administrator Custom Visual Block Rules (P1):
+    - Evaluated Visual Custom Rules even when $url_whitelisted is active, ensuring administrator explicit block rules (e.g. blocking guest uploads or sensitive parameter probes) are strictly enforced and cannot be bypassed by global compatibility URL allowlists.
+    - Gated heuristic layers (CAF dormant component lockdown and Modular script locks) behind !$url_whitelisted && !$vis_allow_all_custom, maintaining CMS compatibility without weakening explicit custom security policies.
+- Namespace Resolution Hardening (Argon Review):
   * OriginLoadCircuitBreaker Namespace Cleanup:
     - Removed redundant and incorrect use declaration in OriginLoadCircuitBreaker.php. Both classes share the WebCareProScanner\Firewall\CAF namespace, resolving class lookup on survival mode defense escalation.
-  * Pre-Boot Custom Visual Rule URL Allowlist Exemption:
-    - Added !$url_whitelisted check to Visual Custom Rules compilation in MicroWafCompiler.php, ensuring whitelisted URLs bypass custom visual heuristic rules while keeping mandatory exploit signatures active.
 - Concurrency, Crash Safety & Whole-Archive Validation Hardening (Review 649cecd Findings):
   * Finding 1.1 (Atomic Compare-And-Swap Cloudflare Lock Takeover & Release):
     - Replaced non-atomic expired lock update_option() in CloudflareIpListSynchronizer::acquire_sync_lock() with atomic database-level Compare-And-Swap (UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s). Guarantees only one concurrent worker acquires the lease token.

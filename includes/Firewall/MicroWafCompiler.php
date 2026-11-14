@@ -614,7 +614,8 @@ class MicroWafCompiler {
         $out .= "        }\n";
         $out .= "        \$mod_rules = json_decode('{$modular_json_escaped}', true) ?: [];\n";
         $out .= "        \$vis_exempt_ids = [];\n";
-        $out .= "        if (!\$mod_rescue_paused && !\$url_whitelisted && !empty(\$mod_rules['visual_rules_enforced'])) {\n";
+        $out .= "        \$vis_allow_all_custom = false;\n";
+        $out .= "        if (!\$mod_rescue_paused && !empty(\$mod_rules['visual_rules_enforced'])) {\n";
         $out .= "            \$trusted_visual = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
         $out .= "            \$vis_q_pos = strpos(\$uri, '?');\n";
         $out .= "            \$vis_query = \$vis_q_pos === false ? '' : substr(\$uri, \$vis_q_pos + 1);\n";
@@ -740,7 +741,10 @@ class MicroWafCompiler {
         $out .= "                if (\$v_matched) {\n";
         $out .= "                    if (\$v_action === 'allow') {\n";
         $out .= "                        \$v_ex = is_array(\$v_rule['exempt_rules'] ?? null) ? \$v_rule['exempt_rules'] : [];\n";
-        $out .= "                        if (empty(\$v_ex)) { return; }\n";
+        $out .= "                        if (empty(\$v_ex)) {\n";
+        $out .= "                            \$vis_allow_all_custom = true;\n";
+        $out .= "                            break;\n";
+        $out .= "                        }\n";
         $out .= "                        foreach (\$v_ex as \$vei) { \$vis_exempt_ids[] = (string) \$vei; }\n";
         $out .= "                        continue;\n";
         $out .= "                    }\n";
@@ -769,7 +773,7 @@ class MicroWafCompiler {
         $out .= "        // Whitelisted URLs bypass CAF dormant component heuristics while preserving mandatory exploit signatures (Finding 1.6)\n";
         $out .= "        \$caf_data_file = '{$caf_compiled_escaped}';\n";
         $out .= "        \$caf_sig_file  = '{$caf_sig_escaped}';\n";
-        $out .= "        if (!\$url_whitelisted && file_exists(\$caf_data_file) && file_exists(\$caf_sig_file)) {\n";
+        $out .= "        if (!\$url_whitelisted && !\$vis_allow_all_custom && file_exists(\$caf_data_file) && file_exists(\$caf_sig_file)) {\n";
         $out .= "            \$sig_content = trim((string) @file_get_contents(\$caf_sig_file));\n";
         $out .= "            \$raw_php = (string) @file_get_contents(\$caf_data_file);\n";
         $out .= "            \$expected_hmac = hash_hmac('sha256', \$raw_php, '{$salt_escaped}');\n";
@@ -849,7 +853,7 @@ class MicroWafCompiler {
         // 5. Modular Intelligence Firewall Pre-Boot Lockdown (Custom rules already evaluated & allow-exemptions recorded above)
         // Whitelisted URLs bypass modular heuristics while preserving mandatory exploit signatures (Finding 1.6)
         $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
-        $out .= "        if (!\$mod_rescue_paused && !\$url_whitelisted) {\n";
+        $out .= "        if (!\$mod_rescue_paused && !\$url_whitelisted && !\$vis_allow_all_custom) {\n";
         $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked']) && !in_array('MOD-ABSPATH-LOCKED', \$vis_exempt_ids, true)) {\n";
         $out .= "                \$clean_script_uri = ltrim(\$mod_clean_uri, '/\\\\');\n";
         $out .= "                foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";
@@ -936,8 +940,9 @@ class MicroWafCompiler {
         $out .= "            }\n";
         $out .= "        }\n\n";
 
+        // 6. Mandatory Exploit Signatures: Core zero-tolerance exploit defenses (SQLi, RCE, LFI, Recon)
+        // Mandatory signatures execute unconditionally on every request and are NEVER bypassed by custom allow rules or exemptions
         $out .= "        foreach (\$signatures as \$rule_id => \$sig) {\n";
-        $out .= "            if (in_array(\$rule_id, \$vis_exempt_ids, true)) { continue; }\n";
         $out .= "            if (preg_match(\$sig['pattern'], \$target_text)) {\n";
         $out .= "                webcare_micro_waf_block(\$ip, \$rule_id, \$sig['desc'], \$fail2ban_log);\n";
         $out .= "            }\n";
