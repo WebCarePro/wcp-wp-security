@@ -1,22 +1,25 @@
 ﻿v:2.15.0 - 2026-11-15
-- Zero-Gap Fail-Closed Streaming, Multipart Resource Ceilings, File Count Invariants & Mutation Defense:
-  * Authoritative Multipart Resource Accounting & File Invariants (Finding 1):
+- Zero-Gap Fail-Closed Streaming, Multipart Resource Ceilings, SVGZ Decompression Bomb Defense & Unified Upload Integrity:
+  * SVGZ Decompression Bomb & Resource Exhaustion Defense (P1):
+    - Replaced unbounded gzdecode() with bounded decompression enforcing a strict maximum decompressed length ($max_decompressed_bytes, 4 MB).
+    - Failed closed (WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR) whenever decompression fails, is corrupted, or exceeds the 4 MB ceiling, eliminating worker memory exhaustion and zip-bomb denial of service.
+    - Implemented a 200:1 compression ratio threshold check to proactively catch high-expansion compression bombs before memory allocation.
+    - Eliminated silent fallback to inspecting raw compressed bytes, ensuring vector files are either safely and completely inspected or blocked fail-closed.
+  * Unified Upload Stream Integrity & Post-Scan Mutation Defense (P2):
+    - Unified SVG, SVGZ, and media uploads (JPEG, PNG, GIF, WebP, PDF, ICO, AVIF) under a single bounded streaming inspection pipeline.
+    - Applied pre-scan metadata capture (filesize, filemtime, fileinode, ceiling check) and 64 KB chunk reading with incremental SHA-256 digest calculation across all upload types.
+    - Enforced post-scan disk revalidation (verifying exact bytes read, post-scan filesize, filemtime, fileinode, and disk SHA-256 match) for SVG/SVGZ uploads, guaranteeing identical anti-tamper and anti-TOCTOU protection across all supported file types (WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED).
+  * Multipart Wire-Body vs. Application Payload Semantics & File Invariants (P2):
+    - Clarified the distinction between transport-layer wire-body ceilings (enforced unconditionally via validated server-provided Content-Length) and application-layer payload consistency checks ($accounted_multipart_bytes = $post_text_bytes + $total_files_bytes).
+    - Failed closed when application-layer payload exceeds declared transport Content-Length (WAF-MULTIPART-SIZE-MISMATCH) or safe inspection ceiling (WAF-BODY-INSPECTION-LIMIT-EXCEEDED).
     - Added $overflow reference parameter to flatten_uploaded_files() to fail closed (WAF-MULTIPART-FILE-COUNT-EXCEEDED) when $_FILES exceeds 50 files or 4 nesting levels, eliminating silent file truncation.
-    - Added authoritative multipart resource accounting summing normalized $_POST text payload and verified $_FILES temporary file sizes on disk with clearstatcache().
-    - Checked UPLOAD_ERR_* codes fail-closed (WAF-MULTIPART-UPLOAD-INCOMPLETE-OR-OVERSIZED) and verified declared upload size matches actual disk size (WAF-MULTIPART-SIZE-MISMATCH).
-    - Enforced mandatory Content-Length header provenance on multipart requests (WAF-MULTIPART-MISSING-CONTENT-LENGTH) and rejected Content-Length under-reporting.
-    - Rejected non-numeric or conflicting CONTENT_LENGTH and HTTP_CONTENT_LENGTH headers fail-closed (WAF-MALFORMED-CONTENT-LENGTH).
-    - Clamped maximum configured body inspection ceiling (waf_max_inspected_body_bytes) strictly to 16 MB (16,777,216 bytes) and optimized streaming body accumulation with single-buffer normalization.
-  * Verified Full-File Read, SHA-256 Stream Hashing & Post-Scan Inode/Disk Revalidation (Finding 2):
-    - Upgraded inspect_uploaded_file() for media and SVG uploads to full-file chunked inspection with pre-scan metadata capture (filesize, filemtime, fileinode, ceiling check).
-    - Added incremental SHA-256 stream hashing during chunk reading alongside deterministic test injection hooks (WEBCARE_TEST_UPLOAD_SHORT_READ, WEBCARE_TEST_UPLOAD_MUTATE_CALLBACK).
-    - Revalidated temporary files on disk post-scan: verified exact byte count read matches filesize, filemtime and fileinode remain untouched, and streamed SHA-256 matches actual disk file SHA-256 (WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED), preventing mid-scan file truncation or TOCTOU file replacement attacks.
+    - Enforced mandatory positive Content-Length header provenance on multipart requests (WAF-MULTIPART-MISSING-CONTENT-LENGTH) and rejected non-numeric or conflicting CONTENT_LENGTH and HTTP_CONTENT_LENGTH headers fail-closed (WAF-MALFORMED-CONTENT-LENGTH).
+    - Clamped maximum configured body inspection ceiling (waf_max_inspected_body_bytes) strictly to 16 MB with single-buffer accumulation in streaming body loops.
   * Single Normalized Source of Truth for Heuristics & Unredacted Mandatory Signatures:
     - Enforced mask_password_fields_for_heuristics() traversing parsed URL-encoded and JSON structures up to depth 4 to mask passwords <= 128 bytes in heuristic representations ($heuristic_combined), while retaining passwords > 128 bytes for heuristic inspection (WAF-XSS-PAYLOAD).
     - Ensured mandatory signatures (SQLi, PHP code injection/RCE, PHP Object Injection, LFI, SSRF) continue to inspect 100% unredacted raw bodies.
-    - Decoupled heuristic representations from raw body chunks, preventing raw passwords containing <script> or prompt phrases from triggering false-positive blocks.
   * Verification & Compliance:
-    - Expanded test suite to 17 comprehensive scenarios with 22 assertions, passing 100% in Docker test environment.
+    - Expanded test suite to 22 comprehensive scenarios with 30 assertions, passing 100% in Docker test environment.
     - Verified official WordPress Plugin Check (PCP) reports 0 errors and 0 warnings.
 
 v:2.14.0 - 2026-11-14

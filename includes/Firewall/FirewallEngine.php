@@ -2295,7 +2295,12 @@ class FirewallEngine {
                 ];
             }
 
-            // 2. Authoritative Multipart Accounting (Files + Text Fields + Content-Length verification)
+            // 2. Application-Layer Multipart Payload Consistency & Content-Length Under-Report Guard
+            // Note: Validated server-provided CONTENT_LENGTH is the primary total wire-body limit (enforced above).
+            // In standard PHP SAPIs, PHP parses multipart/form-data into $_POST and $_FILES prior to execution,
+            // stripping transport-layer boundary delimiters, per-part headers, and framing overhead.
+            // Therefore, $post_text_bytes + $total_files_bytes serves as an application-layer payload consistency check
+            // and strict lower bound to verify that application data does not exceed the transport container size.
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-flight multipart resource ceiling validation
             if ($is_multipart) {
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing
@@ -2374,19 +2379,19 @@ class FirewallEngine {
                 if ($accounted_multipart_bytes > $max_inspect_bytes) {
                     return [
                         'id'          => 'WAF-BODY-INSPECTION-LIMIT-EXCEEDED',
-                        'name'        => 'Multipart Total Payload Ceiling Enforced',
+                        'name'        => 'Multipart Application Payload Ceiling Enforced',
                         'category'    => 'Protocol Defense',
-                        'description' => 'Combined multipart text fields and uploaded files exceed maximum safe inspection size.',
-                        'payload'     => sprintf('Multipart accounted total: %d bytes (limit: %d)', $accounted_multipart_bytes, $max_inspect_bytes),
+                        'description' => 'Combined multipart application payload (text fields + files) exceeds maximum safe inspection size.',
+                        'payload'     => sprintf('Multipart accounted application payload: %d bytes (limit: %d)', $accounted_multipart_bytes, $max_inspect_bytes),
                     ];
                 }
                 if ($has_valid_cl && $expected_content_length > 0 && $accounted_multipart_bytes > $expected_content_length) {
                     return [
                         'id'          => 'WAF-MULTIPART-SIZE-MISMATCH',
-                        'name'        => 'Multipart Content-Length Under-Report Guard',
+                        'name'        => 'Multipart Application Payload Exceeds Transport Length',
                         'category'    => 'Protocol Defense',
-                        'description' => 'Actual multipart payload size exceeds declared Content-Length header; failing closed.',
-                        'payload'     => sprintf('Accounted: %d bytes > Content-Length: %d bytes', $accounted_multipart_bytes, $expected_content_length),
+                        'description' => 'Application-layer multipart payload (POST fields + files) exceeds transport-layer Content-Length; failing closed.',
+                        'payload'     => sprintf('Accounted payload: %d bytes > Content-Length: %d bytes', $accounted_multipart_bytes, $expected_content_length),
                     ];
                 }
             }
@@ -6583,67 +6588,12 @@ class FirewallEngine {
                 }
             }
 
-            // 4. SVG XSS & Active JavaScript Audit (Rule #54: includes transparent .svgz decompression)
-            if ($ext === 'svg' || $ext === 'svgz') {
-                clearstatcache(true, $tmp_path);
-                $svg_fsize = @filesize($tmp_path);
-                $u_max = isset($settings['waf_max_inspected_body_bytes']) ? min(16777216, max(262144, (int) $settings['waf_max_inspected_body_bytes'])) : 10485760;
-                if ($svg_fsize === false || $svg_fsize < 0 || $svg_fsize > $u_max) {
-                    $file['error']     = __('Security Firewall: SVG file is unreadable or exceeds inspection limit.', 'webcare-pro-security');
-                    $file['rule_id']   = 'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED';
-                    $file['rule_name'] = 'Upload Scan Integrity & Mutation Guard';
-                    $file['category']  = 'Malicious File Upload';
-                    return $file;
-                }
-                $content = @file_get_contents($tmp_path);
-                if ($content === false || strlen($content) !== $svg_fsize) {
-                    $file['error']     = __('Security Firewall: Incomplete read while inspecting SVG vector file.', 'webcare-pro-security');
-                    $file['rule_id']   = 'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED';
-                    $file['rule_name'] = 'Upload Scan Integrity & Mutation Guard';
-                    $file['category']  = 'Malicious File Upload';
-                    return $file;
-                }
-                if (!empty($content)) {
-                    if (substr($content, 0, 2) === "\x1f\x8b" && function_exists('gzdecode')) {
-                        $decompressed = @gzdecode($content);
-                        if ($decompressed !== false && is_string($decompressed) && $decompressed !== '') {
-                            $content = $decompressed;
-                        }
-                    }
+            // 4. Unified Upload Stream Integrity Pipeline & Deep Content Inspection (Media Polyglots & SVG/SVGZ Armor)
+            $media_exts        = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf', 'ico', 'avif'];
+            $svg_exts          = ['svg', 'svgz'];
+            $deep_inspect_exts = array_merge($media_exts, $svg_exts);
 
-                    if (preg_match('/(<\?php|<\?=\s*|<script\b|javascript\s*:|\b(onload|onerror|onclick|onmouseover)\s*=|<(foreignObject|iframe|embed|object|animate|set)\b)/i', $content, $m)) {
-                        $client_ip = self::get_client_ip();
-                        if ($log_and_ban) {
-                            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
-                                self::add_blocked_ip(
-                                    $client_ip,
-                                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] SVG/SVGZ XSS payload in upload: %s', $filename),
-                                    86400,
-                                    'WAF-POLYGLOT-UPLOAD-TRAP',
-                                    'SVG/SVGZ Script Armor (Rule #54)',
-                                    'Malicious File Upload'
-                                );
-                            }
-                            self::log_incident([
-                                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
-                                'category'    => 'Malicious File Upload',
-                                'description' => sprintf('Malicious SVG XSS payload (%s) in uploaded file "%s" was blocked.', esc_html($m[0]), esc_html($filename)),
-                                'payload'     => "Filename: {$filename} Match: {$m[0]}",
-                            ], 'blocked');
-                        }
-
-                        $file['error']     = __('Security Firewall: SVG vector file contains executable scripts or embedded XSS tags.', 'webcare-pro-security');
-                        $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
-                        $file['rule_name'] = 'SVG/SVGZ Script Armor (Rule #54)';
-                        $file['category']  = 'Malicious File Upload';
-                        return $file;
-                    }
-                }
-            }
-
-            // 5. Embedded PHP Polyglots & Phar Deserialization Headers in Media (Full-stream chunked inspection with overlap and integrity revalidation)
-            $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf', 'ico', 'avif'];
-            if (in_array($ext, $image_exts, true)) {
+            if (in_array($ext, $deep_inspect_exts, true)) {
                 clearstatcache(true, $tmp_path);
                 $expected_fsize = @filesize($tmp_path);
                 $initial_mtime  = @filemtime($tmp_path);
@@ -6695,6 +6645,8 @@ class FirewallEngine {
                 $php_pattern  = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
                 $polyglot_hit = false;
                 $h_ctx        = hash_init('sha256');
+                $is_svg       = in_array($ext, $svg_exts, true);
+                $svg_raw_buf  = '';
 
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
                 $ufp = @fopen($tmp_path, 'rb');
@@ -6719,6 +6671,10 @@ class FirewallEngine {
                         hash_update($h_ctx, $u_chunk);
                         $u_read += strlen($u_chunk);
 
+                        if ($is_svg) {
+                            $svg_raw_buf .= $u_chunk;
+                        }
+
                         // Test injection hook for short read (simulate truncated read before reaching expected filesize)
                         if (!empty($GLOBALS['WEBCARE_TEST_UPLOAD_SHORT_READ'])) {
                             break;
@@ -6736,12 +6692,14 @@ class FirewallEngine {
                             break;
                         }
 
-                        $u_win = $u_prev . $u_chunk;
-                        if (preg_match($php_pattern, $u_win) || stripos($u_win, '__HALT_COMPILER()') !== false) {
-                            $polyglot_hit = true;
-                            break;
+                        if (!$is_svg) {
+                            $u_win = $u_prev . $u_chunk;
+                            if (preg_match($php_pattern, $u_win) || stripos($u_win, '__HALT_COMPILER()') !== false) {
+                                $polyglot_hit = true;
+                                break;
+                            }
+                            $u_prev = strlen($u_chunk) > 1024 ? substr($u_chunk, -1024) : $u_chunk;
                         }
-                        $u_prev = strlen($u_chunk) > 1024 ? substr($u_chunk, -1024) : $u_chunk;
                     }
                     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                     @fclose($ufp);
@@ -6749,7 +6707,7 @@ class FirewallEngine {
 
                 $streamed_sha256 = hash_final($h_ctx);
 
-                // Post-scan disk revalidation
+                // Post-scan disk revalidation (identical across SVG, SVGZ, JPEG, PNG, PDF, etc.)
                 if (!$polyglot_hit && !$integrity_violation) {
                     clearstatcache(true, $tmp_path);
                     $post_fsize = @filesize($tmp_path);
@@ -6829,6 +6787,115 @@ class FirewallEngine {
                     $file['rule_name'] = 'Polyglot Media Upload Armor (Rule #54)';
                     $file['category']  = 'Malicious File Upload';
                     return $file;
+                }
+
+                // Specific SVG / SVGZ deep vector inspection with bounded decompression (P1 Defense)
+                if ($is_svg) {
+                    $svg_content = $svg_raw_buf;
+                    $is_gzipped  = (substr($svg_content, 0, 2) === "\x1f\x8b") || ($ext === 'svgz');
+
+                    if ($is_gzipped) {
+                        if (!function_exists('gzdecode')) {
+                            $file['error']     = __('Security Firewall: SVGZ decompression unavailable on server; failing closed.', 'webcare-pro-security');
+                            $file['rule_id']   = 'WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR';
+                            $file['rule_name'] = 'SVGZ Decompression Guard';
+                            $file['category']  = 'Malicious File Upload';
+                            return $file;
+                        }
+
+                        $max_decompressed_bytes = min(4194304, $u_max); // 4 MB maximum decompressed vector text
+                        $decompressed = @gzdecode($svg_content, $max_decompressed_bytes);
+
+                        if ($decompressed === false || !is_string($decompressed) || $decompressed === '') {
+                            $client_ip = self::get_client_ip();
+                            if ($log_and_ban) {
+                                if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                                    self::add_blocked_ip(
+                                        $client_ip,
+                                        sprintf('[WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR] SVGZ decompression failed or limit exceeded: %s', $filename),
+                                        86400,
+                                        'WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR',
+                                        'SVGZ Decompression Bomb Guard',
+                                        'Malicious File Upload'
+                                    );
+                                }
+                                self::log_incident([
+                                    'id'          => 'WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR',
+                                    'category'    => 'Malicious File Upload',
+                                    'description' => sprintf('Decompression failed or decompressed payload exceeded inspection ceiling for SVGZ file "%s".', esc_html($filename)),
+                                    'payload'     => "Filename: {$filename}",
+                                ], 'blocked');
+                            }
+
+                            $file['error']     = __('Security Firewall: SVGZ decompression failed or decompressed payload exceeded inspection limit.', 'webcare-pro-security');
+                            $file['rule_id']   = 'WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR';
+                            $file['rule_name'] = 'SVGZ Decompression Bomb Guard';
+                            $file['category']  = 'Malicious File Upload';
+                            return $file;
+                        }
+
+                        // High-ratio compression bomb safeguard (ratio > 200:1)
+                        $c_len = strlen($svg_content);
+                        $d_len = strlen($decompressed);
+                        if ($c_len > 0 && ($d_len / $c_len) > 200) {
+                            $client_ip = self::get_client_ip();
+                            if ($log_and_ban) {
+                                if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                                    self::add_blocked_ip(
+                                        $client_ip,
+                                        sprintf('[WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR] SVGZ compression ratio exceeded safety threshold: %s', $filename),
+                                        86400,
+                                        'WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR',
+                                        'SVGZ Decompression Bomb Guard',
+                                        'Malicious File Upload'
+                                    );
+                                }
+                                self::log_incident([
+                                    'id'          => 'WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR',
+                                    'category'    => 'Malicious File Upload',
+                                    'description' => sprintf('SVGZ file "%s" exceeded safe compression ratio threshold.', esc_html($filename)),
+                                    'payload'     => sprintf('Filename: %s Ratio: %.1f:1 Comp: %d Decomp: %d', $filename, $d_len / $c_len, $c_len, $d_len),
+                                ], 'blocked');
+                            }
+
+                            $file['error']     = __('Security Firewall: SVGZ compression ratio exceeded safety threshold.', 'webcare-pro-security');
+                            $file['rule_id']   = 'WAF-SVGZ-DECOMPRESSION-BOMB-OR-ERROR';
+                            $file['rule_name'] = 'SVGZ Decompression Bomb Guard';
+                            $file['category']  = 'Malicious File Upload';
+                            return $file;
+                        }
+
+                        $svg_content = $decompressed;
+                    }
+
+                    // SVG XSS & Active JavaScript Audit (Rule #54)
+                    if (preg_match('/(<\?php|<\?=\s*|<script\b|javascript\s*:|\b(onload|onerror|onclick|onmouseover)\s*=|<(foreignObject|iframe|embed|object|animate|set)\b)/i', $svg_content, $m)) {
+                        $client_ip = self::get_client_ip();
+                        if ($log_and_ban) {
+                            if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                                self::add_blocked_ip(
+                                    $client_ip,
+                                    sprintf('[WAF-POLYGLOT-UPLOAD-TRAP] SVG/SVGZ XSS payload in upload: %s', $filename),
+                                    86400,
+                                    'WAF-POLYGLOT-UPLOAD-TRAP',
+                                    'SVG/SVGZ Script Armor (Rule #54)',
+                                    'Malicious File Upload'
+                                );
+                            }
+                            self::log_incident([
+                                'id'          => 'WAF-POLYGLOT-UPLOAD-TRAP',
+                                'category'    => 'Malicious File Upload',
+                                'description' => sprintf('Malicious SVG XSS payload (%s) in uploaded file "%s" was blocked.', esc_html($m[0]), esc_html($filename)),
+                                'payload'     => "Filename: {$filename} Match: {$m[0]}",
+                            ], 'blocked');
+                        }
+
+                        $file['error']     = __('Security Firewall: SVG vector file contains executable scripts or embedded XSS tags.', 'webcare-pro-security');
+                        $file['rule_id']   = 'WAF-POLYGLOT-UPLOAD-TRAP';
+                        $file['rule_name'] = 'SVG/SVGZ Script Armor (Rule #54)';
+                        $file['category']  = 'Malicious File Upload';
+                        return $file;
+                    }
                 }
             }
 
