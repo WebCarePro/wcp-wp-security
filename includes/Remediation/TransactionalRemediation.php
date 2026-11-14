@@ -44,6 +44,62 @@ class TransactionalRemediation {
     }
 
     /**
+     * Atomically write transaction manifest with byte verification, durable flush, and rename (Finding 1.4).
+     *
+     * @param string $tx_dir
+     * @param array $manifest
+     * @return bool
+     */
+    public static function write_manifest_atomically(string $tx_dir, array $manifest): bool {
+        if (!is_dir($tx_dir)) {
+            return false;
+        }
+
+        $manifest_file = $tx_dir . '/manifest.json';
+        $json_data = (string) wp_json_encode($manifest, JSON_PRETTY_PRINT);
+        if ($json_data === '') {
+            return false;
+        }
+
+        $tmp_file = $tx_dir . '/manifest.tmp.' . bin2hex(random_bytes(6));
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        $fp = @fopen($tmp_file, 'wb');
+        if (!$fp) {
+            return false;
+        }
+
+        $expected_bytes = strlen($json_data);
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+        $written = @fwrite($fp, $json_data);
+        if ($written !== $expected_bytes) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            @fclose($fp);
+            wp_delete_file($tmp_file);
+            return false;
+        }
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fflush
+        @fflush($fp);
+        if (function_exists('fsync')) {
+            @fsync($fp);
+        }
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        @fclose($fp);
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+        @chmod($tmp_file, 0600);
+
+        // Atomic swap into place
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+        if (!@rename($tmp_file, $manifest_file)) {
+            wp_delete_file($tmp_file);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Start a new atomic remediation transaction.
      *
      * @param string $title
@@ -73,7 +129,7 @@ class TransactionalRemediation {
             'items'       => [],
         ];
 
-        file_put_contents($tx_dir . '/manifest.json', wp_json_encode($manifest, JSON_PRETTY_PRINT));
+        self::write_manifest_atomically($tx_dir, $manifest);
 
         return $tx_id;
     }
@@ -161,8 +217,7 @@ class TransactionalRemediation {
             'timestamp'       => time(),
         ];
 
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-        if (@file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT), LOCK_EX) === false) {
+        if (!self::write_manifest_atomically($tx_dir, $manifest)) {
             wp_delete_file($backup_path);
             return false;
         }
@@ -208,8 +263,7 @@ class TransactionalRemediation {
             'timestamp'     => time(),
         ];
 
-        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
-        return true;
+        return self::write_manifest_atomically($tx_dir, $manifest);
     }
 
     /**
@@ -248,8 +302,7 @@ class TransactionalRemediation {
             'timestamp'       => time(),
         ];
 
-        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
-        return true;
+        return self::write_manifest_atomically($tx_dir, $manifest);
     }
 
     /**
@@ -280,7 +333,7 @@ class TransactionalRemediation {
         $manifest['committed_at'] = current_time('mysql');
         $manifest['total_items'] = count($manifest['items']);
 
-        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
+        self::write_manifest_atomically($tx_dir, $manifest);
 
         // Post-Fix Store & Checkout Pulse Check
         $pulse = class_exists('\\WebCareProScanner\\System\\PulseHealthCheck')
@@ -324,15 +377,17 @@ class TransactionalRemediation {
 
         $tx_dir = self::get_transactions_dir() . '/' . $tx_id;
         $manifest_file = $tx_dir . '/manifest.json';
+        $lock_file = $tx_dir . '/manifest.lock';
 
         if (!file_exists($manifest_file)) {
             return ['success' => false, 'message' => __('Transaction manifest not found.', 'webcare-pro-security')];
         }
 
+        // Dedicated stable lock file for concurrency control (Finding 1.4)
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-        $lock_fp = @fopen($manifest_file, 'r+');
+        $lock_fp = @fopen($lock_file, 'c+');
         if (!$lock_fp) {
-            return ['success' => false, 'message' => __('Cannot acquire transaction file handle.', 'webcare-pro-security')];
+            return ['success' => false, 'message' => __('Cannot acquire transaction lock handle.', 'webcare-pro-security')];
         }
 
         if (!@flock($lock_fp, LOCK_EX)) {
@@ -341,40 +396,29 @@ class TransactionalRemediation {
             return ['success' => false, 'message' => __('Cannot acquire transaction lock.', 'webcare-pro-security')];
         }
 
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
-        $raw_manifest = stream_get_contents($lock_fp);
-        $manifest = json_decode((string) $raw_manifest, true);
-        if (!is_array($manifest)) {
-            flock($lock_fp, LOCK_UN);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($lock_fp);
-            return ['success' => false, 'message' => __('Corrupt transaction manifest.', 'webcare-pro-security')];
-        }
+        try {
+            $raw_manifest = (string) @file_get_contents($manifest_file);
+            $manifest = json_decode($raw_manifest, true);
+            if (!is_array($manifest)) {
+                return ['success' => false, 'message' => __('Corrupt transaction manifest.', 'webcare-pro-security')];
+            }
 
-        $user_mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
-        $missing_users = $user_mgr->get_missing_user_backups();
+            $user_mgr = new \WebCareProScanner\WordPress\UserRemediationManager();
+            $missing_users = $user_mgr->get_missing_user_backups();
 
-        if (($manifest['status'] ?? '') === 'rolled_back' && empty($missing_users)) {
-            flock($lock_fp, LOCK_UN);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($lock_fp);
-            return ['success' => false, 'message' => __('This transaction was already rolled back.', 'webcare-pro-security')];
-        }
+            if (($manifest['status'] ?? '') === 'rolled_back' && empty($missing_users)) {
+                return ['success' => false, 'message' => __('This transaction was already rolled back.', 'webcare-pro-security')];
+            }
 
-        if (($manifest['status'] ?? '') === 'rollback_applying') {
-            flock($lock_fp, LOCK_UN);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($lock_fp);
-            return ['success' => false, 'message' => __('A rollback is already currently in progress for this transaction.', 'webcare-pro-security')];
-        }
+            if (($manifest['status'] ?? '') === 'rollback_applying') {
+                return ['success' => false, 'message' => __('A rollback is already currently in progress for this transaction.', 'webcare-pro-security')];
+            }
 
-        // Set status to rollback_applying atomically inside exclusive file lock (Finding 2.2)
-        $manifest['status'] = 'rollback_applying';
-        fseek($lock_fp, 0);
-        ftruncate($lock_fp, 0);
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-        fwrite($lock_fp, (string) wp_json_encode($manifest, JSON_PRETTY_PRINT));
-        fflush($lock_fp);
+            // Set status to rollback_applying atomically using crash-safe persistent writer (Finding 1.4)
+            $manifest['status'] = 'rollback_applying';
+            if (!self::write_manifest_atomically($tx_dir, $manifest)) {
+                return ['success' => false, 'message' => __('Failed to persist transaction rollback status.', 'webcare-pro-security')];
+            }
 
         global $wpdb;
         $restored_files = 0;
@@ -541,14 +585,12 @@ class TransactionalRemediation {
             $manifest['rollback_errors'] = $errors;
         }
 
-        fseek($lock_fp, 0);
-        ftruncate($lock_fp, 0);
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-        fwrite($lock_fp, (string) wp_json_encode($manifest, JSON_PRETTY_PRINT));
-        fflush($lock_fp);
-        flock($lock_fp, LOCK_UN);
+        self::write_manifest_atomically($tx_dir, $manifest);
+    } finally {
+        @flock($lock_fp, LOCK_UN);
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-        fclose($lock_fp);
+        @fclose($lock_fp);
+    }
 
         $msg_parts = [];
         /* translators: %d: number of files */

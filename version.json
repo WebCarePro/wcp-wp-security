@@ -8,7 +8,7 @@
   "manifest_url": "https://raw.githubusercontent.com/WebCarePro/webcare-pro-security/main/includes/System/plugin-manifest.json",
   "released_at": "2026-11-14",
   "author": "Mir Alamin (WebCare Pro)",
-  "author_homepage": "https://profiles.wordpress.org/webcarepro/",
+  "author_homepage": "https://profiles.wordpress.org/miralamin/",
   "homepage": "https://github.com/WebCarePro/webcare-pro-security",
   "sections": {
     "description": "Enterprise-grade WordPress security scanner, Web Application Firewall, file integrity watchdog, and Cloudflare edge armor engineered by Mir Alamin.",

@@ -432,12 +432,10 @@ class QuarantineManager {
             }
         }
 
-        // Apply atomic no-clobber commit (Finding 2.1)
+        // Apply genuinely atomic no-clobber commit (Finding 1.3)
+        $committed = false;
         if (!$overwrite) {
-            // Atomic check: Open with 'x' (exclusive create) to guarantee no-clobber without TOCTOU race
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-            $check_fp = @fopen($dest_path, 'xb');
-            if ($check_fp === false) {
+            if (file_exists($dest_path)) {
                 wp_delete_file($staging_path);
                 return [
                     'success'  => false,
@@ -445,22 +443,43 @@ class QuarantineManager {
                     'message'  => __('Restore aborted: A file already exists at the destination path.', 'webcare-pro-security'),
                 ];
             }
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($check_fp);
+
+            // Atomic commit via link(): fails with EEXIST if destination exists, preventing race-condition overwrite
+            if (function_exists('link') && @link($staging_path, $dest_path)) {
+                wp_delete_file($staging_path);
+                $committed = true;
+            } else {
+                // Secondary check if destination appeared before rename
+                if (file_exists($dest_path)) {
+                    wp_delete_file($staging_path);
+                    return [
+                        'success'  => false,
+                        'conflict' => true,
+                        'message'  => __('Restore aborted: A file already exists at the destination path.', 'webcare-pro-security'),
+                    ];
+                }
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic swap of restored staging file
+                if (@rename($staging_path, $dest_path)) {
+                    $committed = true;
+                }
+            }
+        } else {
+            // Overwrite allowed: atomic rename with safe copy fallback
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+            if (@rename($staging_path, $dest_path)) {
+                $committed = true;
+            } elseif (@copy($staging_path, $dest_path)) {
+                wp_delete_file($staging_path);
+                $committed = true;
+            }
         }
 
-        // Move verified restored staging file into destination path
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic swap of restored staging file
-        if (!@rename($staging_path, $dest_path)) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Fallback copy when rename fails across volumes
-            if (!@copy($staging_path, $dest_path)) {
-                wp_delete_file($staging_path);
-                return [
-                    'success' => false,
-                    'message' => 'Failed to commit restored file into destination path. Check filesystem permissions.',
-                ];
-            }
+        if (!$committed) {
             wp_delete_file($staging_path);
+            return [
+                'success' => false,
+                'message' => __('Failed to commit restored file into destination path. Check filesystem permissions.', 'webcare-pro-security'),
+            ];
         }
 
         // Restore file permissions
@@ -472,16 +491,25 @@ class QuarantineManager {
             @chmod($dest_path, $perms);
         }
 
-        // Unlink vault storage file
-        wp_delete_file($source_path);
-
-        // Update database record
+        // Update database record FIRST to preserve recoverability until DB state commits (Finding 1.3)
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-        $wpdb->update($table, [
+        $db_updated = $wpdb->update($table, [
             'status'          => 'restored',
             'restored_at'     => current_time('mysql'),
             'restored_at_gmt' => gmdate('Y-m-d H:i:s'),
         ], ['id' => $quarantine_id]);
+
+        if ($db_updated === false) {
+            // Roll back restored file so the system state remains consistent
+            wp_delete_file($dest_path);
+            return [
+                'success' => false,
+                'message' => __('Database update failed during restore. Restored file reverted and quarantine vault preserved.', 'webcare-pro-security'),
+            ];
+        }
+
+        // Only once database commit is confirmed, safely unlink vault storage file
+        wp_delete_file($source_path);
 
         // If issue exists, set status back to open
         $issues_table = $wpdb->prefix . 'webcareproscan_scan_issues';

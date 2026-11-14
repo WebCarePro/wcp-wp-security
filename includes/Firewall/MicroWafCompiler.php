@@ -766,9 +766,10 @@ class MicroWafCompiler {
         $salt_escaped = addslashes($salt);
 
         $out .= "        // 4. Context-Adaptive Firewall (CAF): Inactive component lockdown & verified artifact validation\n";
+        $out .= "        // Whitelisted URLs bypass CAF dormant component heuristics while preserving mandatory exploit signatures (Finding 1.6)\n";
         $out .= "        \$caf_data_file = '{$caf_compiled_escaped}';\n";
         $out .= "        \$caf_sig_file  = '{$caf_sig_escaped}';\n";
-        $out .= "        if (file_exists(\$caf_data_file) && file_exists(\$caf_sig_file)) {\n";
+        $out .= "        if (!\$url_whitelisted && file_exists(\$caf_data_file) && file_exists(\$caf_sig_file)) {\n";
         $out .= "            \$sig_content = trim((string) @file_get_contents(\$caf_sig_file));\n";
         $out .= "            \$raw_php = (string) @file_get_contents(\$caf_data_file);\n";
         $out .= "            \$expected_hmac = hash_hmac('sha256', \$raw_php, '{$salt_escaped}');\n";
@@ -846,8 +847,9 @@ class MicroWafCompiler {
         $out .= "        }\n\n";
 
         // 5. Modular Intelligence Firewall Pre-Boot Lockdown (Custom rules already evaluated & allow-exemptions recorded above)
+        // Whitelisted URLs bypass modular heuristics while preserving mandatory exploit signatures (Finding 1.6)
         $out .= "        // 5. Modular Intelligence Firewall Pre-Boot Lockdown\n";
-        $out .= "        if (!\$mod_rescue_paused) {\n";
+        $out .= "        if (!\$mod_rescue_paused && !\$url_whitelisted) {\n";
         $out .= "            if (!empty(\$mod_rules['direct_scripts_blocked']) && !in_array('MOD-ABSPATH-LOCKED', \$vis_exempt_ids, true)) {\n";
         $out .= "                \$clean_script_uri = ltrim(\$mod_clean_uri, '/\\\\');\n";
         $out .= "                foreach (\$mod_rules['direct_scripts_blocked'] as \$b_script) {\n";

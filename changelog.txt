@@ -1,4 +1,22 @@
 ﻿v:2.14.0 - 2026-11-14
+- Concurrency, Crash Safety & Whole-Archive Validation Hardening (Review 649cecd Findings):
+  * Finding 1.1 (Atomic Compare-And-Swap Cloudflare Lock Takeover & Release):
+    - Replaced non-atomic expired lock update_option() in CloudflareIpListSynchronizer::acquire_sync_lock() with atomic database-level Compare-And-Swap (UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s). Guarantees only one concurrent worker acquires the lease token.
+    - Updated release_sync_lock() with single atomic deletion (DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s), eliminating the check-then-delete race.
+  * Finding 1.2 (Zero-Drop Persistent Ban Queue Mutex & Mid-Sync Preservation):
+    - Implemented CloudflareIpListSynchronizer::mutate_ban_queue() with an atomic spinlock mutex on webcare_cf_queue_mutex, reading the latest database state directly to eliminate race conditions between concurrent producers.
+    - Upgraded process_sync_queue() and flush_immediate_shutdown_bans() to differentially prune confirmed synced IPs and update retry attempts while preserving mid-sync incoming bans in the queue without drops.
+  * Finding 1.3 (Genuine Atomic No-Clobber Restore & DB-First Commit):
+    - Upgraded QuarantineManager::restore_file() to enforce genuine atomic no-clobber protection via link() (failing with EEXIST if destination was created concurrently) and non-destructive fallback before rename().
+    - Enforced database commit precedence: updates the database record status to 'restored' before deleting the quarantine vault backup. If database update fails, restored file is reverted and vault storage is kept 100% intact.
+  * Finding 1.4 (Crash-Safe Transaction Manifest Persistence):
+    - Added TransactionalRemediation::write_manifest_atomically(): writes to a unique temporary file (manifest.tmp.*), verifies written byte count, flushes and executes durable fsync(), and atomically renames into manifest.json.
+    - Protected rollback state transitions with an independent stable lock file (manifest.lock) held with flock(LOCK_EX), preventing empty/corrupted manifests on unexpected process termination.
+  * Finding 1.5 (Whole-Archive Integrity Verification & Malformed Metadata Guard):
+    - Hardened VaultRotator::is_chunked_vault_under_key() to enforce complete archive integrity: validates chunk counts (1–1,000,000), ciphertext frame lengths (chunk_size + 64), decrypted byte count against declared file_size, streaming SHA-256 hash against declared orig_sha256, and strictly verifies absence of trailing bytes after the final chunk.
+    - Updated SecretVault::inspect_vault_file() to return valid: false on malformed or incomplete metadata JSON headers.
+  * Finding 1.6 (Pre-Boot URL Allowlist Consumption):
+    - Wired $url_whitelisted in MicroWafCompiler.php to exempt whitelisted URLs from CAF dormant component lockdowns and modular heuristic blocks, while strictly keeping mandatory exploit signatures (SQLi, RCE, LFI, PHP code uploads) active.
 - Deep Architecture & Data-Integrity Hardening (Findings 1.1–1.5, 2.1–2.7):
   * Finding 1.1 & 1.2 (Vault I/O Error Fail-Closed & Strict Chunk Metadata Validation):
     - Replaced silent loop break on fread() === false with explicit failure abortion in SecretVault::encrypt_file_to_vault(), deleting temporary files before returning.

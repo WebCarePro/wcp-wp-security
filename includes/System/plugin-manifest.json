@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-14T11:39:50.916Z",
+  "generated_at": "2026-11-14T12:11:33.809Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -400,8 +400,8 @@
       "size": 25129
     },
     "includes/Firewall/CAF/CloudflareIpListSynchronizer.php": {
-      "sha256": "b545e793127a8abc8907fca773904b5363f1dba42c672f4ee1a818a48761a50d",
-      "size": 41564
+      "sha256": "757d0dc1a265e4c462ebccd06a55d264f00186a16b504e7c85027001b2465ad7",
+      "size": 47886
     },
     "includes/Firewall/CAF/CloudflareSlotOptimizer.php": {
       "sha256": "4109926fba5a4e88aa9e1f23730a071bf66218dc7083d0b31b874114db70f8bb",
@@ -472,8 +472,8 @@
       "size": 15983
     },
     "includes/Firewall/MicroWafCompiler.php": {
-      "sha256": "e368b225153b655e9fe09960cf08aecd8361ca514bdeef9d93cb157e46c04b65",
-      "size": 85570
+      "sha256": "337328c793d495b29aaede36c7075e9efc065fe0a6243316b5589d73bfd730b2",
+      "size": 85877
     },
     "includes/Firewall/Modular/BehavioralVaultManager.php": {
       "sha256": "c70eec9f734ed625a478e464a130205f74cb533ed824db3d3f44efd7153db99b",
@@ -688,8 +688,8 @@
       "size": 1192
     },
     "includes/Quarantine/QuarantineManager.php": {
-      "sha256": "9fa06be4fdd54683792f81da12d87266e2b150e61703a4736cda2dc48daee6e8",
-      "size": 33700
+      "sha256": "9656491217d5465ebbc5853aac5e8567b524989a77da21d21fac48a36a0be664",
+      "size": 34869
     },
     "includes/Quarantine/ReinfectionWatchdog.php": {
       "sha256": "15a66c5701f26bbf4aef407442f347aa315049f27c8c82d566c6353afcf31cbb",
@@ -700,8 +700,8 @@
       "size": 58223
     },
     "includes/Remediation/TransactionalRemediation.php": {
-      "sha256": "29bf10154b7b3a792bab1428bd75dd2379beccb6b5764775964d7f9c51bc88b5",
-      "size": 29861
+      "sha256": "5ab40049e9d2cf8e555afd224607f929255e8f38d90f3b52a71f85e04eea5f32",
+      "size": 30928
     },
     "includes/Reports/IncidentReportEngine.php": {
       "sha256": "2d94eedefaa631e6a5abc3224a79f52ca9b651d5d092e1f9cd364374ceaddd34",
@@ -764,12 +764,12 @@
       "size": 30891
     },
     "includes/Security/SecretVault.php": {
-      "sha256": "f8cd1f983b3953f9302604c0da93643107e1bda54c2eda21417afdf7034fb064",
-      "size": 37202
+      "sha256": "7fb5474bc6030e516510da3feb9d57f17703fea978ed0d84de5dd072cc34da2a",
+      "size": 37523
     },
     "includes/Security/VaultRotator.php": {
-      "sha256": "706ff616319d7f281c47257e08ea6dbbfed763e380d882f392652215617722e3",
-      "size": 30796
+      "sha256": "9e4c86bbedb9d7f21c89e5782ffc05abe05cdfe837a49796b8f0b0fec147ff43",
+      "size": 33230
     },
     "includes/SupplyChain/InstallRiskAdvisor.php": {
       "sha256": "efd655f0d6222111f6e9ef7e16f6018f4d198289d78b14680d2d48e38ab64793",

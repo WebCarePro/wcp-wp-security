@@ -490,9 +490,14 @@ class VaultRotator {
         $halt_marker = '__halt_compiler(); ?' . '>';
         $halt_pos = strpos($header_buffer, $halt_marker);
         if ($halt_pos === false) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($fp);
-            return false;
+            $halt_marker_alt = '__halt_compiler(); ' . '?>';
+            $halt_pos = strpos($header_buffer, $halt_marker_alt);
+            if ($halt_pos === false) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($fp);
+                return false;
+            }
+            $halt_marker = $halt_marker_alt;
         }
 
         $payload_offset = $halt_pos + strlen($halt_marker);
@@ -510,18 +515,40 @@ class VaultRotator {
 
         $json_str = trim(substr($format_line, strlen('// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')));
         $meta = json_decode($json_str, true);
-        if (!is_array($meta) || empty($meta['chunks']) || (int) $meta['chunks'] < 1) {
+        if (!is_array($meta) || empty($meta)) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($fp);
             return false;
         }
 
-        $total_chunks = (int) $meta['chunks'];
+        $total_chunks  = (int) ($meta['chunks'] ?? 0);
+        $expected_sha  = (string) ($meta['orig_sha256'] ?? '');
+        $expected_size = isset($meta['file_size']) ? (int) $meta['file_size'] : -1;
+        $chunk_size    = (int) ($meta['chunk_size'] ?? 2097152);
+
+        // Strict archive metadata schema and boundary validation (Finding 1.5)
+        if (
+            ($meta['format'] ?? '') !== \WebCareProScanner\Security\SecretVault::VAULT_FORMAT_CHUNKED
+            || $total_chunks < 1
+            || $total_chunks > 1000000
+            || $expected_size < 0
+            || $chunk_size < 1024
+            || $chunk_size > 10485760
+            || !preg_match('/^[a-f0-9]{64}$/i', $expected_sha)
+        ) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($fp);
+            return false;
+        }
+
         $raw_key = strlen($binary_key) === 64 && ctype_xdigit($binary_key)
             ? (string) hex2bin($binary_key)
             : (strlen($binary_key) === 32 ? $binary_key : hash('sha256', $binary_key, true));
 
-        // Verify ALL chunks under key (Finding 1.3)
+        $dec_h_ctx       = hash_init('sha256');
+        $dec_bytes_total = 0;
+
+        // Verify ALL chunks under key and stream plaintext hash (Finding 1.5)
         for ($chunk_idx = 0; $chunk_idx < $total_chunks; $chunk_idx++) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
             $len_buf = fread($fp, 4);
@@ -532,6 +559,12 @@ class VaultRotator {
             }
 
             $cipher_len = unpack('N', $len_buf)[1];
+            if ($cipher_len < 0 || $cipher_len > ($chunk_size + 64)) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($fp);
+                return false;
+            }
+
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
             $iv  = fread($fp, 12);
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
@@ -550,12 +583,38 @@ class VaultRotator {
                 return false;
             }
 
-            $res = @openssl_decrypt($ciphertext, 'aes-256-gcm', $raw_key, OPENSSL_RAW_DATA, $iv, $tag, pack('N', $chunk_idx));
-            if ($res === false) {
+            $plaintext = @openssl_decrypt($ciphertext, 'aes-256-gcm', $raw_key, OPENSSL_RAW_DATA, $iv, $tag, pack('N', $chunk_idx));
+            if ($plaintext === false) {
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                 fclose($fp);
                 return false;
             }
+
+            hash_update($dec_h_ctx, $plaintext);
+            $dec_bytes_total += strlen($plaintext);
+        }
+
+        // Verify total decrypted bytes and plaintext hash (Finding 1.5)
+        if ($dec_bytes_total !== $expected_size) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($fp);
+            return false;
+        }
+
+        $actual_sha = hash_final($dec_h_ctx);
+        if (!hash_equals($expected_sha, $actual_sha)) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($fp);
+            return false;
+        }
+
+        // Verify no trailing data exists after the final declared chunk (Finding 1.5)
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+        $trailing = fread($fp, 1);
+        if ($trailing !== '' && $trailing !== false) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($fp);
+            return false;
         }
 
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose

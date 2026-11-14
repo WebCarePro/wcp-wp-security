@@ -127,16 +127,13 @@ class CloudflareIpListSynchronizer {
             'last_error' => '',
         ];
 
-        // Always persist ban intent immediately to persistent queue (Finding 2.3)
-        $queue = get_option(self::OPTION_BAN_QUEUE, []);
-        if (!is_array($queue)) {
-            $queue = [];
-        }
-        $queue[$ip] = $entry;
-        if (count($queue) > 500) {
-            $queue = array_slice($queue, -500, null, true);
-        }
-        update_option(self::OPTION_BAN_QUEUE, $queue, false);
+        // Always persist ban intent immediately to persistent queue under atomic spinlock (Finding 1.2)
+        $queue_count = 0;
+        self::mutate_ban_queue(static function (array $queue) use ($ip, $entry, &$queue_count): array {
+            $queue[$ip] = $entry;
+            $queue_count = count($queue);
+            return $queue;
+        });
 
         // Burst limiter: Check how many instant bans were pushed in the current 10-second window
         $burst_key = 'webcare_cf_instant_burst';
@@ -160,7 +157,7 @@ class CloudflareIpListSynchronizer {
         }
 
         // High-velocity swarm (>5 bans in 10s): background flush if queue >= 25 entries
-        if (count($queue) >= 25) {
+        if ($queue_count >= 25) {
             self::trigger_background_queue_flush();
         }
     }
@@ -213,35 +210,27 @@ class CloudflareIpListSynchronizer {
                 }
             }
 
-            $queue = get_option(self::OPTION_BAN_QUEUE, []);
-            if (!is_array($queue)) {
-                $queue = [];
-            }
-
-            // Remove confirmed items from OPTION_BAN_QUEUE
-            if (!empty($confirmed_source_ips)) {
-                foreach (array_keys($confirmed_source_ips) as $cip) {
-                    unset($queue[$cip]);
+            // Remove confirmed items from OPTION_BAN_QUEUE and update unconfirmed items safely via mutate_ban_queue (Finding 1.2)
+            self::mutate_ban_queue(static function (array $queue) use ($confirmed_source_ips, $items_to_sync, $result): array {
+                if (!empty($confirmed_source_ips)) {
+                    foreach (array_keys($confirmed_source_ips) as $cip) {
+                        unset($queue[$cip]);
+                    }
                 }
-            }
 
-            // Update any unconfirmed items in OPTION_BAN_QUEUE with retry backoff
-            $now = time();
-            foreach ($items_to_sync as $ip => $entry) {
-                if (empty($confirmed_source_ips[$ip])) {
-                    $attempts = ((int) ($entry['attempts'] ?? 0)) + 1;
-                    $entry['status']     = ($attempts >= 5) ? 'failed' : 'retry';
-                    $entry['attempts']   = $attempts;
-                    $entry['next_retry'] = $now + min(3600, 30 * (2 ** $attempts));
-                    $entry['last_error'] = (string) ($result['error'] ?? 'Shutdown flush unconfirmed');
-                    $queue[$ip] = $entry;
+                $now = time();
+                foreach ($items_to_sync as $ip => $entry) {
+                    if (empty($confirmed_source_ips[$ip])) {
+                        $attempts = ((int) ($entry['attempts'] ?? 0)) + 1;
+                        $entry['status']     = ($attempts >= 5) ? 'failed' : 'retry';
+                        $entry['attempts']   = $attempts;
+                        $entry['next_retry'] = $now + min(3600, 30 * (2 ** $attempts));
+                        $entry['last_error'] = (string) ($result['error'] ?? 'Shutdown flush unconfirmed');
+                        $queue[$ip] = $entry;
+                    }
                 }
-            }
-
-            if (count($queue) > 500) {
-                $queue = array_slice($queue, -500, null, true);
-            }
-            update_option(self::OPTION_BAN_QUEUE, $queue, false);
+                return $queue;
+            });
         } finally {
             self::release_sync_lock($lock_token);
         }
@@ -414,30 +403,160 @@ class CloudflareIpListSynchronizer {
     }
 
     /**
-     * Acquire atomic database-level synchronization lock using add_option (Finding 2.3).
+     * Mutate persistent ban queue under atomic database-level spinlock mutex (Finding 1.2).
+     * Guarantees concurrent producers and consumers never drop newly added IP bans.
+     *
+     * @param callable $callback function(array $queue): array
+     * @return bool
+     */
+    public static function mutate_ban_queue(callable $callback): bool {
+        global $wpdb;
+        $mutex_key = 'webcare_cf_queue_mutex';
+        $acquired = false;
+        $start = microtime(true);
+        $token = bin2hex(random_bytes(16));
+
+        // Spinlock with backoff (up to 2.5 seconds)
+        while ((microtime(true) - $start) < 2.5) {
+            $lock_val = $token . '|' . (time() + 5);
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            if (add_option($mutex_key, $lock_val, '', 'no')) {
+                $acquired = true;
+                break;
+            }
+
+            // Check if existing mutex is expired
+            if ($wpdb && isset($wpdb->options)) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $existing = (string) $wpdb->get_var($wpdb->prepare(
+                    "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+                    $mutex_key
+                ));
+                if ($existing !== '') {
+                    $parts = explode('|', $existing, 2);
+                    $exp = (int) ($parts[1] ?? 0);
+                    if ($exp > 0 && $exp < time()) {
+                        // Expired: attempt atomic Compare-And-Swap takeover
+                        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                        $swapped = $wpdb->query($wpdb->prepare(
+                            "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+                            $lock_val,
+                            $mutex_key,
+                            $existing
+                        ));
+                        if ($swapped === 1) {
+                            $acquired = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            usleep(10000); // 10ms
+        }
+
+        if (!$acquired) {
+            // Fallback: mutate directly if lock cannot be acquired after timeout
+            $queue = get_option(self::OPTION_BAN_QUEUE, []);
+            $queue = is_array($queue) ? $queue : [];
+            $queue = $callback($queue);
+            $queue = is_array($queue) ? $queue : [];
+            if (count($queue) > 500) {
+                $queue = array_slice($queue, -500, null, true);
+            }
+            update_option(self::OPTION_BAN_QUEUE, $queue, false);
+            return false;
+        }
+
+        try {
+            if (function_exists('wp_cache_delete')) {
+                wp_cache_delete(self::OPTION_BAN_QUEUE, 'options');
+            }
+            $raw = null;
+            if ($wpdb && isset($wpdb->options)) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $raw = $wpdb->get_var($wpdb->prepare(
+                    "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+                    self::OPTION_BAN_QUEUE
+                ));
+            }
+            $queue = ($raw !== null && $raw !== '') ? maybe_unserialize($raw) : get_option(self::OPTION_BAN_QUEUE, []);
+            $queue = is_array($queue) ? $queue : [];
+
+            $queue = $callback($queue);
+            $queue = is_array($queue) ? $queue : [];
+
+            if (empty($queue)) {
+                delete_option(self::OPTION_BAN_QUEUE);
+            } else {
+                if (count($queue) > 500) {
+                    $queue = array_slice($queue, -500, null, true);
+                }
+                update_option(self::OPTION_BAN_QUEUE, $queue, false);
+            }
+            return true;
+        } finally {
+            if ($wpdb && isset($wpdb->options)) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value LIKE %s",
+                    $mutex_key,
+                    $token . '|%'
+                ));
+            } else {
+                delete_option($mutex_key);
+            }
+            if (function_exists('wp_cache_delete')) {
+                wp_cache_delete($mutex_key, 'options');
+            }
+        }
+    }
+
+    /**
+     * Acquire atomic database-level synchronization lock using add_option and atomic DB CAS takeover (Finding 1.1).
      *
      * @param int $ttl Lock lifetime in seconds (default 60)
      * @return string|null Lock token if successfully acquired, null if already locked
      */
     public static function acquire_sync_lock(int $ttl = 60): ?string {
+        global $wpdb;
         $now = time();
         $token = bin2hex(random_bytes(16)) . '|' . ($now + $ttl);
         $lock_key = 'webcare_cf_sync_atomic_lock';
 
-        // Atomic DB insertion via add_option (fails if option already exists)
+        // 1. Fast-path: Atomic DB insertion via add_option (fails if option already exists)
         if (add_option($lock_key, $token, '', 'no')) {
             return $token;
         }
 
-        // Check if existing lock is expired
-        $existing = (string) get_option($lock_key, '');
-        if ($existing !== '') {
-            $parts = explode('|', $existing, 2);
-            $exp = (int) ($parts[1] ?? 0);
-            if ($exp > 0 && $exp < $now) {
-                // Lock expired: replace atomically
-                if (update_option($lock_key, $token, false)) {
-                    return $token;
+        // 2. Slow-path: Check if existing lock is expired and perform atomic Compare-And-Swap (CAS)
+        if ($wpdb && isset($wpdb->options)) {
+            if (function_exists('wp_cache_delete')) {
+                wp_cache_delete($lock_key, 'options');
+            }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $existing = (string) $wpdb->get_var($wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+                $lock_key
+            ));
+            if ($existing !== '') {
+                $parts = explode('|', $existing, 2);
+                $exp = (int) ($parts[1] ?? 0);
+                if ($exp > 0 && $exp < $now) {
+                    // Lock expired: atomic CAS update strictly verifying previous option_value
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                    $updated = $wpdb->query($wpdb->prepare(
+                        "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+                        $token,
+                        $lock_key,
+                        $existing
+                    ));
+                    if ($updated === 1) {
+                        if (function_exists('wp_cache_delete')) {
+                            wp_cache_delete($lock_key, 'options');
+                        }
+                        return $token;
+                    }
                 }
             }
         }
@@ -446,7 +565,7 @@ class CloudflareIpListSynchronizer {
     }
 
     /**
-     * Release atomic synchronization lock only if held by current worker (Finding 2.3).
+     * Release atomic synchronization lock only if held by current worker (Finding 1.1).
      *
      * @param string|null $token
      * @return void
@@ -455,10 +574,25 @@ class CloudflareIpListSynchronizer {
         if ($token === null || $token === '') {
             return;
         }
+        global $wpdb;
         $lock_key = 'webcare_cf_sync_atomic_lock';
-        $current = (string) get_option($lock_key, '');
-        if ($current === $token) {
-            delete_option($lock_key);
+
+        if ($wpdb && isset($wpdb->options)) {
+            // Atomic conditional deletion in single database query
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+                $lock_key,
+                $token
+            ));
+        } else {
+            $current = (string) get_option($lock_key, '');
+            if ($current === $token) {
+                delete_option($lock_key);
+            }
+        }
+        if (function_exists('wp_cache_delete')) {
+            wp_cache_delete($lock_key, 'options');
         }
     }
 
@@ -543,32 +677,29 @@ class CloudflareIpListSynchronizer {
                 }
             }
 
-            $remaining_queue = $ineligible_entries;
             $synced_count = count($confirmed_ips);
 
-            foreach ($eligible_entries as $ip => $entry) {
-                if (!empty($confirmed_ips[$ip])) {
-                    // Confirmed synced on Cloudflare: drop from queue
-                    continue;
+            // Safely mutate persistent queue under mutex without clobbering new concurrent entries (Finding 1.2)
+            self::mutate_ban_queue(static function (array $queue) use ($confirmed_ips, $eligible_entries, $sync_result, $now): array {
+                // Drop confirmed synced items
+                foreach (array_keys($confirmed_ips) as $cip) {
+                    unset($queue[$cip]);
                 }
 
-                // Failed or unconfirmed: increment attempt counter with exponential backoff (CF-01)
-                $attempts = ((int) ($entry['attempts'] ?? 0)) + 1;
-                $entry['attempts']   = $attempts;
-                $entry['last_error'] = (string) ($sync_result['error'] ?? 'Synchronization unconfirmed');
-                $entry['status']     = ($attempts >= 5) ? 'failed' : 'retry';
-                $entry['next_retry'] = $now + min(3600, 30 * (2 ** $attempts));
-                $remaining_queue[$ip] = $entry;
-            }
-
-            if (empty($remaining_queue)) {
-                delete_option(self::OPTION_BAN_QUEUE);
-            } else {
-                if (count($remaining_queue) > 500) {
-                    $remaining_queue = array_slice($remaining_queue, -500, null, true);
+                // Update unconfirmed/failed items with retry backoff
+                foreach ($eligible_entries as $ip => $entry) {
+                    if (empty($confirmed_ips[$ip])) {
+                        $attempts = ((int) ($entry['attempts'] ?? 0)) + 1;
+                        $entry['attempts']   = $attempts;
+                        $entry['last_error'] = (string) ($sync_result['error'] ?? 'Synchronization unconfirmed');
+                        $entry['status']     = ($attempts >= 5) ? 'failed' : 'retry';
+                        $entry['next_retry'] = $now + min(3600, 30 * (2 ** $attempts));
+                        $queue[$ip] = $entry;
+                    }
                 }
-                update_option(self::OPTION_BAN_QUEUE, $remaining_queue, false);
-            }
+
+                return $queue;
+            });
 
             return $synced_count;
         } finally {

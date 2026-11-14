@@ -812,7 +812,11 @@ class SecretVault {
         fclose($fp);
 
         if (is_string($line) && str_starts_with($line, '// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')) {
-            $meta = json_decode(substr(trim($line), strlen('// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')), true) ?: [];
+            $json_str = substr(trim($line), strlen('// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:'));
+            $meta = json_decode($json_str, true);
+            if (!is_array($meta) || empty($meta) || empty($meta['chunks']) || (int) $meta['chunks'] < 1 || empty($meta['orig_sha256']) || !isset($meta['file_size'])) {
+                return ['valid' => false, 'error' => 'Malformed chunked vault metadata or schema mismatch.'];
+            }
             return [
                 'valid'       => true,
                 'format'      => self::VAULT_FORMAT_CHUNKED,
