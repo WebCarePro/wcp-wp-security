@@ -1170,7 +1170,7 @@ class ModularFirewallSynthesizer {
         $req_action = isset($_REQUEST['action']) ? self::normalize_action_token(sanitize_text_field(wp_unslash($_REQUEST['action']))) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Pre-dispatch security inspection of REST query route smuggling
         $rest_query = isset($_GET['rest_route']) ? strtolower(sanitize_text_field(wp_unslash($_GET['rest_route']))) : '';
-        $payload_rx = '/(?:\bunion\s+all\s+select\b|\bselect\b.{1,40}\bfrom\b.{1,40}\bwp_users\b|sleep\s*\(\s*\d+\s*\)|benchmark\s*\(|<script\b|javascript:|wp_capabilities|administrator)/i';
+        $payload_rx = '/(?:\bunion\s+all\s+select\b|\bselect\b.{1,40}\bfrom\b.{1,40}\bwp_users\b|sleep\s*\(\s*\d+\s*\)|benchmark\s*\(|<script\b|javascript:|wp_capabilities|(?:(?:"|\'|\b)(?:role|default_role|user_role|capabilities)\b[^a-z0-9_]{0,20}\badministrator\b)|s:13:"administrator")/i';
 
         // Read raw body once for REST JSON / API payloads up to 64KB
         $raw_body = '';

@@ -59,6 +59,12 @@ class FirewallEngine {
         // Flush Preload Micro-WAF custom rule ban intents queued prior to WordPress boot
         add_action('init', [__CLASS__, 'flush_preload_ban_queue'], 5);
 
+        // Synchronize and rotate Preload Auth HMAC Cookie for Pre-Boot WAF
+        add_action('init', [__CLASS__, 'sync_preload_auth_cookie'], 1);
+        add_action('wp_login', [__CLASS__, 'on_user_login_preload_auth'], 10, 2);
+        add_action('wp_logout', [__CLASS__, 'clear_preload_auth_cookie']);
+        add_action('clear_auth_cookie', [__CLASS__, 'clear_preload_auth_cookie']);
+
         // Smart 404 Scanner Rate Limiter & Reconnaissance Shield (Priority 999: Allow redirection plugins & template logic to process first)
         add_action('template_redirect', [__CLASS__, 'track_404_request'], 999);
 
@@ -169,6 +175,12 @@ class FirewallEngine {
         }
 
         $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? trim(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']))) : '';
+        if (stripos($remote_addr, '::ffff:') === 0) {
+            $mapped_v4 = substr($remote_addr, 7);
+            if (filter_var($mapped_v4, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $remote_addr = $mapped_v4;
+            }
+        }
         if (!filter_var($remote_addr, FILTER_VALIDATE_IP)) {
             $remote_addr = '127.0.0.1';
         }
@@ -184,7 +196,13 @@ class FirewallEngine {
 
         // Priority 1: Cloudflare CF-Connecting-IP (if connecting via Cloudflare proxy)
         if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-            $cf_ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));
+            $cf_ip = trim(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP'])));
+            if (stripos($cf_ip, '::ffff:') === 0) {
+                $mapped_cf = substr($cf_ip, 7);
+                if (filter_var($mapped_cf, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $cf_ip = $mapped_cf;
+                }
+            }
             if (filter_var($cf_ip, FILTER_VALIDATE_IP)) {
                 $resolved_ip = $cf_ip;
             }
@@ -200,6 +218,12 @@ class FirewallEngine {
             $parts = array_map('sanitize_text_field', array_map('trim', explode(',', $raw_xff)));
             $reversed = array_reverse($parts);
             foreach ($reversed as $candidate) {
+                if (stripos($candidate, '::ffff:') === 0) {
+                    $mapped_c = substr($candidate, 7);
+                    if (filter_var($mapped_c, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                        $candidate = $mapped_c;
+                    }
+                }
                 if (filter_var($candidate, FILTER_VALIDATE_IP)) {
                     if (!self::is_trusted_proxy($candidate)) {
                         $resolved_ip = $candidate;
@@ -215,6 +239,12 @@ class FirewallEngine {
         }
 
         self::$real_ip = $resolved_ip ?: $remote_addr;
+        if (stripos(self::$real_ip, '::ffff:') === 0) {
+            $mapped_final = substr(self::$real_ip, 7);
+            if (filter_var($mapped_final, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                self::$real_ip = $mapped_final;
+            }
+        }
         return self::$real_ip;
     }
 
@@ -3268,6 +3298,12 @@ class FirewallEngine {
         }
 
         if (strpos($range, '/') === false) {
+            if (stripos($range, '::ffff:') === 0) {
+                $mapped_r = substr($range, 7);
+                if (filter_var($mapped_r, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $range = $mapped_r;
+                }
+            }
             return $ip === $range;
         }
 
@@ -3277,6 +3313,12 @@ class FirewallEngine {
         }
 
         $subnet = trim($parts[0]);
+        if (stripos($subnet, '::ffff:') === 0) {
+            $mapped_sub = substr($subnet, 7);
+            if (filter_var($mapped_sub, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $subnet = $mapped_sub;
+            }
+        }
         $bits = (int) trim($parts[1]);
 
         // IPv4 check
@@ -9671,5 +9713,211 @@ class FirewallEngine {
         }
 
         return $processed;
+    }
+
+    /**
+     * Synchronize and rotate the cryptographic preload auth cookie used by the pre-boot Micro-WAF.
+     *
+     * Ensures an authentic, tamper-proof cookie is present for logged-in sessions without relying
+     * on unverified cookie name substrings (wordpress_logged_in_*) prior to WordPress core bootstrap.
+     *
+     * @return void
+     */
+    public static function sync_preload_auth_cookie(): void {
+        if (!function_exists('is_user_logged_in')) {
+            return;
+        }
+
+        if (!is_user_logged_in()) {
+            if (isset($_COOKIE['webcare_preload_auth'])) {
+                self::clear_preload_auth_cookie();
+            }
+            return;
+        }
+
+        $raw_c = isset($_COOKIE['webcare_preload_auth']) && is_string($_COOKIE['webcare_preload_auth'])
+            ? trim((string) $_COOKIE['webcare_preload_auth'])
+            : '';
+        $needs_refresh = true;
+
+        if ($raw_c !== '') {
+            if (strpos($raw_c, '|') === false) {
+                $raw_c = (string) @base64_decode($raw_c, true);
+            }
+            $parts = explode('|', $raw_c);
+            if (count($parts) === 4) {
+                list($c_uid, $c_is_admin, $c_exp, $c_sig) = $parts;
+                $current_uid = (int) get_current_user_id();
+                $current_is_admin = current_user_can('manage_options') ? 1 : 0;
+                $salt = function_exists('wp_salt') ? wp_salt('auth') : 'webcare-preload-auth-salt';
+                $ip_bind = self::get_client_ip();
+                $expected_sig = hash_hmac('sha256', "{$c_uid}|{$c_is_admin}|{$c_exp}|{$ip_bind}", $salt);
+
+                // If valid, matches current user/role, and has at least 15m remaining, no refresh needed
+                if ((int) $c_uid === $current_uid && (int) $c_is_admin === $current_is_admin &&
+                    (int) $c_exp > (time() + 900) && hash_equals($expected_sig, $c_sig)) {
+                    $needs_refresh = false;
+                }
+            }
+        }
+
+        if ($needs_refresh) {
+            self::issue_preload_auth_cookie();
+        }
+    }
+
+    /**
+     * Handle user login hook to issue the preload auth cookie immediately upon sign-in.
+     *
+     * @param string   $user_login Username.
+     * @param \WP_User $user       Authenticated user object.
+     * @return void
+     */
+    public static function on_user_login_preload_auth($user_login, $user): void {
+        if ($user instanceof \WP_User && $user->ID > 0) {
+            self::issue_preload_auth_cookie($user);
+        }
+    }
+
+    /**
+     * Issue or refresh the cryptographic preload auth cookie for an authenticated user.
+     *
+     * @param \WP_User|null $user Target user object (defaults to current logged-in user).
+     * @return void
+     */
+    public static function issue_preload_auth_cookie($user = null): void {
+        if (headers_sent()) {
+            return;
+        }
+
+        if ($user === null && function_exists('wp_get_current_user')) {
+            $user = wp_get_current_user();
+        }
+
+        if (!$user || !($user instanceof \WP_User) || $user->ID <= 0) {
+            return;
+        }
+
+        $uid      = (int) $user->ID;
+        $is_admin = user_can($user, 'manage_options') ? 1 : 0;
+        $exp      = time() + 3600; // 1-hour rolling validity
+        $ip_bind  = self::get_client_ip();
+        $salt     = function_exists('wp_salt') ? wp_salt('auth') : 'webcare-preload-auth-salt';
+        $payload  = "{$uid}|{$is_admin}|{$exp}";
+        $sig      = hash_hmac('sha256', $payload . '|' . $ip_bind, $salt);
+        $val      = base64_encode("{$payload}|{$sig}");
+
+        $cookie_path   = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
+        $cookie_domain = defined('COOKIE_DOMAIN') ? COOKIE_DOMAIN : '';
+        $secure        = function_exists('is_ssl') && is_ssl();
+
+        // Issue HttpOnly, Secure, SameSite=Lax cookie
+        if (PHP_VERSION_ID >= 70300) {
+            setcookie('webcare_preload_auth', $val, [
+                'expires'  => $exp,
+                'path'     => $cookie_path,
+                'domain'   => $cookie_domain,
+                'secure'   => $secure,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+        } else {
+            // phpcs:ignore WordPress.Security.SafeCookie.SetCookieDomain
+            setcookie('webcare_preload_auth', $val, $exp, $cookie_path . '; samesite=Lax', $cookie_domain, $secure, true);
+        }
+
+        $_COOKIE['webcare_preload_auth'] = $val;
+    }
+
+    /**
+     * Clear the cryptographic preload auth cookie on user logout or session revocation.
+     *
+     * @return void
+     */
+    public static function clear_preload_auth_cookie(): void {
+        if (!headers_sent()) {
+            $cookie_path   = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
+            $cookie_domain = defined('COOKIE_DOMAIN') ? COOKIE_DOMAIN : '';
+            $secure        = function_exists('is_ssl') && is_ssl();
+
+            if (PHP_VERSION_ID >= 70300) {
+                setcookie('webcare_preload_auth', '', [
+                    'expires'  => time() - 3600,
+                    'path'     => $cookie_path,
+                    'domain'   => $cookie_domain,
+                    'secure'   => $secure,
+                    'httponly' => true,
+                    'samesite' => 'Lax',
+                ]);
+            } else {
+                // phpcs:ignore WordPress.Security.SafeCookie.SetCookieDomain
+                setcookie('webcare_preload_auth', '', time() - 3600, $cookie_path, $cookie_domain, $secure, true);
+            }
+        }
+
+        if (isset($_COOKIE['webcare_preload_auth'])) {
+            unset($_COOKIE['webcare_preload_auth']);
+        }
+    }
+
+    /**
+     * Generate a signed, time-bounded emergency WAF bypass token for administrative access.
+     *
+     * @param string|null $ip  Target client IP to bind (defaults to current client IP).
+     * @param int         $ttl Time to live in seconds (default 900s / 15m).
+     * @return string Formatted as "<timestamp>.<hmac>".
+     */
+    public static function generate_waf_bypass_token(?string $ip = null, int $ttl = 900): string {
+        $bypass_secret = (string) get_option('webcareproscan_micro_waf_bypass_token', '');
+        if ($bypass_secret === '') {
+            $bypass_secret = function_exists('wp_salt') ? wp_salt('auth') : 'webcare-waf-bypass-salt';
+        }
+        $ts = time();
+        $target_ip = $ip !== null ? trim($ip) : self::get_client_ip();
+        if (stripos($target_ip, '::ffff:') === 0) {
+            $mapped_v4 = substr($target_ip, 7);
+            if (filter_var($mapped_v4, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $target_ip = $mapped_v4;
+            }
+        }
+        $hmac = hash_hmac('sha256', 'wcp_bypass|' . $ts . '|' . $target_ip, $bypass_secret);
+        return $ts . '.' . $hmac;
+    }
+
+    /**
+     * Verify a signed, time-bounded emergency WAF bypass token.
+     *
+     * @param string      $token     Candidate token string ("<timestamp>.<hmac>").
+     * @param string|null $ip        Connecting client IP (defaults to current client IP).
+     * @param int         $max_drift Maximum allowable timestamp drift in seconds (default 900s).
+     * @return bool
+     */
+    public static function verify_waf_bypass_token(string $token, ?string $ip = null, int $max_drift = 900): bool {
+        $token = trim($token);
+        if ($token === '' || strpos($token, '.') === false) {
+            return false;
+        }
+        $parts = explode('.', $token, 2);
+        if (count($parts) !== 2 || !ctype_digit((string) $parts[0])) {
+            return false;
+        }
+        $ts = (int) $parts[0];
+        $hmac = (string) $parts[1];
+        if (abs(time() - $ts) > $max_drift) {
+            return false;
+        }
+        $target_ip = $ip !== null ? trim($ip) : self::get_client_ip();
+        if (stripos($target_ip, '::ffff:') === 0) {
+            $mapped_v4 = substr($target_ip, 7);
+            if (filter_var($mapped_v4, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $target_ip = $mapped_v4;
+            }
+        }
+        $bypass_secret = (string) get_option('webcareproscan_micro_waf_bypass_token', '');
+        if ($bypass_secret === '') {
+            $bypass_secret = function_exists('wp_salt') ? wp_salt('auth') : 'webcare-waf-bypass-salt';
+        }
+        $expected_hmac = hash_hmac('sha256', 'wcp_bypass|' . $ts . '|' . $target_ip, $bypass_secret);
+        return hash_equals($expected_hmac, $hmac);
     }
 }

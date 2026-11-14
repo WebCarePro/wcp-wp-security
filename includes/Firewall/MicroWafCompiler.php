@@ -254,6 +254,8 @@ class MicroWafCompiler {
             }
         }
 
+        $auth_salt = function_exists('wp_salt') ? wp_salt('auth') : 'webcare-preload-auth-salt';
+
         $code = self::generate_standalone_code(
             $blocked_ips,
             $compiled_signatures,
@@ -267,7 +269,8 @@ class MicroWafCompiler {
             $waf_preload_enforced,
             array_values(array_unique($whitelisted_ips)),
             $wl_require_admin,
-            array_values(array_unique($whitelisted_urls))
+            array_values(array_unique($whitelisted_urls)),
+            $auth_salt
         );
 
         // Write compiled file atomically
@@ -329,7 +332,8 @@ class MicroWafCompiler {
         bool $waf_preload_enforced = true,
         array $whitelisted_ips = [],
         bool $wl_require_admin = true,
-        array $whitelisted_urls = []
+        array $whitelisted_urls = [],
+        string $auth_salt = ''
     ): string {
         // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Compiling static array representation for OPcache.
         $ips_export = var_export($blocked_ips, true);
@@ -347,6 +351,10 @@ class MicroWafCompiler {
         $bypass_escaped = addslashes($bypass_token);
         $htaccess_escaped = addslashes($htaccess_path);
         $vault_escaped    = addslashes($emergency_vault);
+        if ($auth_salt === '') {
+            $auth_salt = function_exists('wp_salt') ? wp_salt('auth') : 'webcare-preload-auth-salt';
+        }
+        $auth_salt_escaped = addslashes($auth_salt);
 
         $out = "<?php\n";
         $out .= "/**\n";
@@ -365,9 +373,12 @@ class MicroWafCompiler {
         $out .= "    return;\n";
         $out .= "}\n\n";
 
-        // Kill-switch 2: emergency query bypass token
-        $out .= "if (isset(\$_GET['webcare_waf_bypass']) && hash_equals('{$bypass_escaped}', (string) \$_GET['webcare_waf_bypass'])) {\n";
-        $out .= "    return;\n";
+        // Kill-switch 3: emergency administrative header bypass (direct secret match for CLI / curl)
+        $out .= "if (isset(\$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS']) && is_string(\$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS'])) {\n";
+        $out .= "    \$header_token = trim((string) \$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS']);\n";
+        $out .= "    if (hash_equals('{$bypass_escaped}', \$header_token)) {\n";
+        $out .= "        return;\n";
+        $out .= "    }\n";
         $out .= "}\n\n";
 
         // Micro-WAF Core Engine with Self-Preservation Try/Catch
@@ -410,11 +421,25 @@ class MicroWafCompiler {
 
         $out .= "        // 1. Resolve real client IP (Cloudflare Edge + custom trusted proxy CIDRs)\n";
         $out .= "        \$webcare_match_ip_list = static function (string \$target_ip, array \$rules): bool {\n";
+        $out .= "            \$target_ip = trim(\$target_ip);\n";
+        $out .= "            if (stripos(\$target_ip, '::ffff:') === 0) {\n";
+        $out .= "                \$mapped = substr(\$target_ip, 7);\n";
+        $out .= "                if (filter_var(\$mapped, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "                    \$target_ip = \$mapped;\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
         $out .= "            if (\$target_ip === '' || empty(\$rules) || !filter_var(\$target_ip, FILTER_VALIDATE_IP)) {\n";
         $out .= "                return false;\n";
         $out .= "            }\n";
         $out .= "            \$ip_bin = @inet_pton(\$target_ip);\n";
         $out .= "            foreach (\$rules as \$rule) {\n";
+        $out .= "                \$rule = trim(\$rule);\n";
+        $out .= "                if (stripos(\$rule, '::ffff:') === 0) {\n";
+        $out .= "                    \$mapped_r = substr(\$rule, 7);\n";
+        $out .= "                    if (filter_var(\$mapped_r, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "                        \$rule = \$mapped_r;\n";
+        $out .= "                    }\n";
+        $out .= "                }\n";
         $out .= "                if (\$target_ip === \$rule) {\n";
         $out .= "                    return true;\n";
         $out .= "                }\n";
@@ -422,6 +447,13 @@ class MicroWafCompiler {
         $out .= "                    continue;\n";
         $out .= "                }\n";
         $out .= "                list(\$subnet, \$mask_raw) = explode('/', \$rule, 2);\n";
+        $out .= "                \$subnet = trim(\$subnet);\n";
+        $out .= "                if (stripos(\$subnet, '::ffff:') === 0) {\n";
+        $out .= "                    \$mapped_s = substr(\$subnet, 7);\n";
+        $out .= "                    if (filter_var(\$mapped_s, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "                        \$subnet = \$mapped_s;\n";
+        $out .= "                    }\n";
+        $out .= "                }\n";
         $out .= "                \$sub_bin = @inet_pton(\$subnet);\n";
         $out .= "                if (\$sub_bin === false || strlen(\$ip_bin) !== strlen(\$sub_bin) || !ctype_digit((string) \$mask_raw)) {\n";
         $out .= "                    continue;\n";
@@ -444,17 +476,36 @@ class MicroWafCompiler {
         $out .= "            }\n";
         $out .= "            return false;\n";
         $out .= "        };\n";
-        $out .= "        \$ip = isset(\$_SERVER['REMOTE_ADDR']) ? trim(\$_SERVER['REMOTE_ADDR']) : '127.0.0.1';\n";
+        $out .= "        \$raw_peer = isset(\$_SERVER['REMOTE_ADDR']) ? trim(\$_SERVER['REMOTE_ADDR']) : '127.0.0.1';\n";
+        $out .= "        if (stripos(\$raw_peer, '::ffff:') === 0) {\n";
+        $out .= "            \$mapped_v4 = substr(\$raw_peer, 7);\n";
+        $out .= "            if (filter_var(\$mapped_v4, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "                \$raw_peer = \$mapped_v4;\n";
+        $out .= "            }\n";
+        $out .= "        }\n";
+        $out .= "        \$ip = \$raw_peer;\n";
         $out .= "        \$cf_cidrs = ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22','2400:cb00::/32','2606:4700::/32','2803:f800::/32','2405:b500::/32','2405:8100::/32','2a06:98c0::/29','2c0f:f248::/32'];\n";
-        $out .= "        \$is_cf_ip = \$webcare_match_ip_list(\$ip, \$cf_cidrs);\n";
-        $out .= "        \$is_custom_proxy = !\$is_cf_ip && \$webcare_match_ip_list(\$ip, \$trusted_proxies);\n";
+        $out .= "        \$is_cf_ip = \$webcare_match_ip_list(\$raw_peer, \$cf_cidrs);\n";
+        $out .= "        \$is_custom_proxy = !\$is_cf_ip && \$webcare_match_ip_list(\$raw_peer, \$trusted_proxies);\n";
         $out .= "        if (\$is_cf_ip && isset(\$_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var(\$_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {\n";
         $out .= "            \$ip = trim(\$_SERVER['HTTP_CF_CONNECTING_IP']);\n";
+        $out .= "            if (stripos(\$ip, '::ffff:') === 0) {\n";
+        $out .= "                \$mapped_cf = substr(\$ip, 7);\n";
+        $out .= "                if (filter_var(\$mapped_cf, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "                    \$ip = \$mapped_cf;\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
         $out .= "        } elseif (\$is_custom_proxy) {\n";
         $out .= "            \$resolved_proxy_client = '';\n";
         $out .= "            if (!empty(\$_SERVER['HTTP_X_FORWARDED_FOR'])) {\n";
         $out .= "                \$xff_parts = array_reverse(array_map('trim', explode(',', (string) \$_SERVER['HTTP_X_FORWARDED_FOR'])));\n";
         $out .= "                foreach (\$xff_parts as \$cand) {\n";
+        $out .= "                    if (stripos(\$cand, '::ffff:') === 0) {\n";
+        $out .= "                        \$mapped_c = substr(\$cand, 7);\n";
+        $out .= "                        if (filter_var(\$mapped_c, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "                            \$cand = \$mapped_c;\n";
+        $out .= "                        }\n";
+        $out .= "                    }\n";
         $out .= "                    if (filter_var(\$cand, FILTER_VALIDATE_IP) && !\$webcare_match_ip_list(\$cand, \$cf_cidrs) && !\$webcare_match_ip_list(\$cand, \$trusted_proxies)) {\n";
         $out .= "                        \$resolved_proxy_client = \$cand;\n";
         $out .= "                        break;\n";
@@ -465,23 +516,60 @@ class MicroWafCompiler {
         $out .= "                \$ip = \$resolved_proxy_client;\n";
         $out .= "            } elseif (isset(\$_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var(\$_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {\n";
         $out .= "                \$ip = trim(\$_SERVER['HTTP_CF_CONNECTING_IP']);\n";
+        $out .= "                if (stripos(\$ip, '::ffff:') === 0) {\n";
+        $out .= "                    \$mapped_cf2 = substr(\$ip, 7);\n";
+        $out .= "                    if (filter_var(\$mapped_cf2, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {\n";
+        $out .= "                        \$ip = \$mapped_cf2;\n";
+        $out .= "                    }\n";
+        $out .= "                }\n";
         $out .= "            }\n";
         $out .= "        }\n\n";
-
+        $out .= "        // Emergency signed time-bound token bypass (URL query ?webcare_waf_bypass= or X-WebCare-Waf-Bypass header)\n";
+        $out .= "        \$bypass_candidate = '';\n";
+        $out .= "        if (isset(\$_GET['webcare_waf_bypass']) && is_string(\$_GET['webcare_waf_bypass'])) {\n";
+        $out .= "            \$bypass_candidate = trim((string) \$_GET['webcare_waf_bypass']);\n";
+        $out .= "        } elseif (isset(\$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS']) && is_string(\$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS'])) {\n";
+        $out .= "            \$bypass_candidate = trim((string) \$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS']);\n";
+        $out .= "        }\n";
+        $out .= "        if (\$bypass_candidate !== '' && strpos(\$bypass_candidate, '.') !== false) {\n";
+        $out .= "            list(\$b_ts, \$b_hmac) = explode('.', \$bypass_candidate, 2);\n";
+        $out .= "            if (ctype_digit((string) \$b_ts) && abs(time() - (int) \$b_ts) <= 900) {\n";
+        $out .= "                \$b_valid = hash_equals(hash_hmac('sha256', 'wcp_bypass|' . \$b_ts . '|' . \$ip, '{$bypass_escaped}'), \$b_hmac);\n";
+        $out .= "                if (!\$b_valid && \$raw_peer !== '' && \$raw_peer !== \$ip) {\n";
+        $out .= "                    \$b_valid = hash_equals(hash_hmac('sha256', 'wcp_bypass|' . \$b_ts . '|' . \$raw_peer, '{$bypass_escaped}'), \$b_hmac);\n";
+        $out .= "                }\n";
+        $out .= "                if (\$b_valid) {\n";
+        $out .= "                    return;\n";
+        $out .= "                }\n";
+        $out .= "            }\n";
+        $out .= "        }\n\n";
         $out .= "        if (!\$waf_preload_enforced) {\n";
         $out .= "            return;\n";
         $out .= "        }\n\n";
-
         $out .= "        \$mod_has_login_cookie = false;\n";
-        $out .= "        if (!empty(\$_COOKIE)) {\n";
-        $out .= "            foreach (array_keys(\$_COOKIE) as \$ck) {\n";
-        $out .= "                if (strpos((string) \$ck, 'wordpress_logged_in_') === 0) {\n";
-        $out .= "                    \$mod_has_login_cookie = true;\n";
-        $out .= "                    break;\n";
+        $out .= "        \$mod_is_admin_user    = false;\n";
+        $out .= "        if (!empty(\$_COOKIE['webcare_preload_auth']) && is_string(\$_COOKIE['webcare_preload_auth'])) {\n";
+        $out .= "            \$raw_preload_auth = trim((string) \$_COOKIE['webcare_preload_auth']);\n";
+        $out .= "            if (strpos(\$raw_preload_auth, '|') === false) {\n";
+        $out .= "                \$raw_preload_auth = (string) @base64_decode(\$raw_preload_auth, true);\n";
+        $out .= "            }\n";
+        $out .= "            \$auth_parts = explode('|', \$raw_preload_auth);\n";
+        $out .= "            if (count(\$auth_parts) === 4) {\n";
+        $out .= "                list(\$c_uid, \$c_is_admin, \$c_exp, \$c_sig) = \$auth_parts;\n";
+        $out .= "                if (ctype_digit((string) \$c_exp) && (int) \$c_exp > time()) {\n";
+        $out .= "                    \$expected_sig = hash_hmac('sha256', \"{\$c_uid}|{\$c_is_admin}|{\$c_exp}|{\$ip}\", '{$auth_salt_escaped}');\n";
+        $out .= "                    \$sig_valid = hash_equals(\$expected_sig, \$c_sig);\n";
+        $out .= "                    if (!\$sig_valid && \$raw_peer !== '' && \$raw_peer !== \$ip) {\n";
+        $out .= "                        \$sig_valid = hash_equals(hash_hmac('sha256', \"{\$c_uid}|{\$c_is_admin}|{\$c_exp}|{\$raw_peer}\", '{$auth_salt_escaped}'), \$c_sig);\n";
+        $out .= "                    }\n";
+        $out .= "                    if (\$sig_valid) {\n";
+        $out .= "                        \$mod_has_login_cookie = true;\n";
+        $out .= "                        \$mod_is_admin_user    = ((int) \$c_is_admin === 1);\n";
+        $out .= "                    }\n";
         $out .= "                }\n";
         $out .= "            }\n";
         $out .= "        }\n";
-        $out .= "        if (!empty(\$whitelisted_ips) && \$webcare_match_ip_list(\$ip, \$whitelisted_ips) && (!\$wl_require_admin || \$mod_has_login_cookie)) {\n";
+        $out .= "        if (!empty(\$whitelisted_ips) && \$webcare_match_ip_list(\$ip, \$whitelisted_ips) && (!\$wl_require_admin || \$mod_is_admin_user)) {\n";
         $out .= "            return;\n";
         $out .= "        }\n\n";
 
@@ -532,7 +620,7 @@ class MicroWafCompiler {
         $out .= "        }\n";
         $out .= "        \$mod_rules = json_decode('{$modular_json_escaped}', true) ?: [];\n";
         $out .= "        \$vis_exempt_ids = [];\n";
-        $out .= "        if (!\$mod_rescue_paused && !\$mod_has_login_cookie && !empty(\$mod_rules['visual_rules_enforced'])) {\n";
+        $out .= "        if (!\$mod_rescue_paused && !empty(\$mod_rules['visual_rules_enforced'])) {\n";
         $out .= "            \$trusted_visual = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
         $out .= "            \$vis_q_pos = strpos(\$uri, '?');\n";
         $out .= "            \$vis_query = \$vis_q_pos === false ? '' : substr(\$uri, \$vis_q_pos + 1);\n";
@@ -546,8 +634,15 @@ class MicroWafCompiler {
         $out .= "            \$vis_exts  = [];\n";
         $out .= "            if (!empty(\$_FILES) && is_array(\$_FILES)) {\n";
         $out .= "                foreach (\$_FILES as \$vf) {\n";
-        $out .= "                    \$vnames = is_array(\$vf['name'] ?? null) ? \$vf['name'] : [(\$vf['name'] ?? '')];\n";
-        $out .= "                    foreach (\$vnames as \$vn) { if (is_string(\$vn) && \$vn !== '') { \$ve = strtolower(pathinfo(\$vn, PATHINFO_EXTENSION)); if (\$ve !== '') { \$vis_exts[] = \$ve; } } }\n";
+        $out .= "                    if (isset(\$vf['name'])) {\n";
+        $out .= "                        \$fnames = is_array(\$vf['name']) ? \$vf['name'] : [\$vf['name']];\n";
+        $out .= "                        array_walk_recursive(\$fnames, static function (\$vn) use (&\$vis_exts) {\n";
+        $out .= "                            if (is_string(\$vn) && \$vn !== '') {\n";
+        $out .= "                                \$ve = strtolower(pathinfo(\$vn, PATHINFO_EXTENSION));\n";
+        $out .= "                                if (\$ve !== '') { \$vis_exts[] = \$ve; }\n";
+        $out .= "                            }\n";
+        $out .= "                        });\n";
+        $out .= "                    }\n";
         $out .= "                }\n";
         $out .= "            }\n";
         $out .= "            \$vis_match_op = static function(string \$s, string \$op, string \$w): bool {\n";
@@ -567,12 +662,32 @@ class MicroWafCompiler {
         $out .= "                return false;\n";
         $out .= "            };\n";
         $out .= "            \$vis_cidr_fn = static function(string \$cip, string \$cidr): bool {\n";
+        $out .= "                \$cip = trim(\$cip);\n";
+        $out .= "                if (stripos(\$cip, '::ffff:') === 0) {\n";
+        $out .= "                    \$m_c = substr(\$cip, 7);\n";
+        $out .= "                    if (filter_var(\$m_c, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) { \$cip = \$m_c; }\n";
+        $out .= "                }\n";
         $out .= "                \$cidr = trim(\$cidr);\n";
-        $out .= "                if (strpos(\$cidr, '/') === false) return strtolower(trim(\$cip)) === strtolower(\$cidr);\n";
-        $out .= "                [\$sub, \$bits] = explode('/', \$cidr, 2);\n";
-        $out .= "                \$ib = @inet_pton(trim(\$cip)); \$sb = @inet_pton(trim(\$sub));\n";
+        $out .= "                if (strpos(\$cidr, '/') === false) {\n";
+        $out .= "                    if (stripos(\$cidr, '::ffff:') === 0) {\n";
+        $out .= "                        \$m_sub = substr(\$cidr, 7);\n";
+        $out .= "                        if (filter_var(\$m_sub, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) { \$cidr = \$m_sub; }\n";
+        $out .= "                    }\n";
+        $out .= "                    return strtolower(\$cip) === strtolower(\$cidr);\n";
+        $out .= "                }\n";
+        $out .= "                [\$sub, \$bits_raw] = explode('/', \$cidr, 2);\n";
+        $out .= "                if (!ctype_digit((string) \$bits_raw)) { return false; }\n";
+        $out .= "                \$sub = trim(\$sub);\n";
+        $out .= "                if (stripos(\$sub, '::ffff:') === 0) {\n";
+        $out .= "                    \$m_sub2 = substr(\$sub, 7);\n";
+        $out .= "                    if (filter_var(\$m_sub2, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) { \$sub = \$m_sub2; }\n";
+        $out .= "                }\n";
+        $out .= "                \$ib = @inet_pton(\$cip); \$sb = @inet_pton(\$sub);\n";
         $out .= "                if (\$ib === false || \$sb === false || strlen(\$ib) !== strlen(\$sb)) return false;\n";
-        $out .= "                \$b = max(0, min(strlen(\$ib) * 8, (int) \$bits)); \$f = intdiv(\$b, 8); \$r = \$b % 8;\n";
+        $out .= "                \$b = (int) \$bits_raw;\n";
+        $out .= "                \$max_b = strlen(\$ib) * 8;\n";
+        $out .= "                if (\$b < 0 || \$b > \$max_b) return false;\n";
+        $out .= "                \$f = intdiv(\$b, 8); \$r = \$b % 8;\n";
         $out .= "                if (\$f > 0 && substr(\$ib, 0, \$f) !== substr(\$sb, 0, \$f)) return false;\n";
         $out .= "                if (\$r > 0) { \$m = (~((1 << (8 - \$r)) - 1)) & 0xFF; if ((ord(\$ib[\$f]) & \$m) !== (ord(\$sb[\$f]) & \$m)) return false; }\n";
         $out .= "                return true;\n";
@@ -581,6 +696,9 @@ class MicroWafCompiler {
         $out .= "                \$v_id = (string) (\$v_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
         $out .= "                if (in_array(\$v_id, \$trusted_visual, true) || in_array(\$v_id, \$vis_exempt_ids, true)) continue;\n";
         $out .= "                \$v_action  = (string) (\$v_rule['action_type'] ?? 'block');\n";
+        $out .= "                if (\$mod_has_login_cookie && \$v_action !== 'allow') {\n";
+        $out .= "                    continue;\n";
+        $out .= "                }\n";
         $out .= "                \$v_gl      = strtoupper((string) (\$v_rule['group_logic'] ?? 'OR')) === 'AND' ? 'AND' : 'OR';\n";
         $out .= "                \$v_grps    = (array) (\$v_rule['conditions'] ?? []);\n";
         $out .= "                \$v_matched = (\$v_gl === 'AND' && !empty(\$v_grps));\n";
@@ -701,19 +819,9 @@ class MicroWafCompiler {
         $out .= "                        }\n";
         $out .= "                    }\n\n";
 
-        $out .= "                    // 3. Unauthenticated admin-ajax.php probe lockdown against dormant plugin actions\n";
+        $out .= "                    // 3. admin-ajax.php probe lockdown against dormant plugin actions (applies to all requests)\n";
         $out .= "                    if (strpos(\$uri, 'admin-ajax.php') !== false) {\n";
-        $out .= "                        \$has_auth_cookie = false;\n";
-        $out .= "                        if (!empty(\$_COOKIE)) {\n";
-        $out .= "                            foreach (array_keys(\$_COOKIE) as \$c_name) {\n";
-        $out .= "                                if (strpos((string) \$c_name, 'wordpress_logged_in_') === 0) {\n";
-        $out .= "                                    \$has_auth_cookie = true;\n";
-        $out .= "                                    break;\n";
-        $out .= "                                }\n";
-        $out .= "                            }\n";
-        $out .= "                        }\n";
-        $out .= "                        if (!\$has_auth_cookie) {\n";
-        $out .= "                            \$ajax_action = '';\n";
+        $out .= "                        \$ajax_action = '';\n";
         $out .= "                            if (isset(\$_GET['action'])) {\n";
         $out .= "                                \$ajax_action = trim((string) \$_GET['action']);\n";
         $out .= "                            } elseif (isset(\$_POST['action'])) {\n";
@@ -734,14 +842,13 @@ class MicroWafCompiler {
         $out .= "                                        }\n";
         $out .= "                                    }\n";
         $out .= "                                    if (\$is_dormant_action) {\n";
-        $out .= "                                        webcare_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-AJAX-ACTION', 'Unauthenticated probe on dormant plugin AJAX action (' . htmlspecialchars(substr(\$ajax_action, 0, 40), ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
+        $out .= "                                        webcare_micro_waf_block(\$ip, 'WAF-CAF-DORMANT-AJAX-ACTION', 'Probe on dormant plugin AJAX action (' . htmlspecialchars(substr(\$ajax_action, 0, 40), ENT_QUOTES, 'UTF-8') . ')', \$fail2ban_log);\n";
         $out .= "                                    }\n";
         $out .= "                                }\n";
         $out .= "                            }\n";
         $out .= "                        }\n";
         $out .= "                    }\n";
         $out .= "                }\n";
-        $out .= "            }\n";
         $out .= "        }\n\n";
 
         // 5. Modular Intelligence Firewall Pre-Boot Lockdown (Custom rules already evaluated & allow-exemptions recorded above)
@@ -756,7 +863,7 @@ class MicroWafCompiler {
         $out .= "                }\n";
         $out .= "            }\n";
         $out .= "            if (!\$mod_has_login_cookie && !empty(\$mod_rules['custom_rules_enforced'])) {\n";
-        $out .= "                \$mod_payload_rx = '/(?:\\\\bunion\\\\s+all\\\\s+select\\\\b|\\\\bselect\\\\b.{1,40}\\\\bfrom\\\\b.{1,40}\\\\bwp_users\\\\b|sleep\\\\s*\\\\(\\\\s*\\\\d+\\\\s*\\\\)|benchmark\\\\s*\\\\(|<script\\\\b|javascript:|wp_capabilities|administrator)/i';\n";
+        $out .= "                \$mod_payload_rx = '/(?:\\\\bunion\\\\s+all\\\\s+select\\\\b|\\\\bselect\\\\b.{1,40}\\\\bfrom\\\\b.{1,40}\\\\bwp_users\\\\b|sleep\\\\s*\\\\(\\\\s*\\\\d+\\\\s*\\\\)|benchmark\\\\s*\\\\(|<script\\\\b|javascript:|wp_capabilities|(?:(?:\"|\'|\\\\b)(?:role|default_role|user_role|capabilities)\\\\b[^a-z0-9_]{0,20}\\\\badministrator\\\\b)|s:13:\"administrator\")/i';\n";
         $out .= "                \$trusted_custom = is_array(\$mod_trusted['rule_ids'] ?? null) ? \$mod_trusted['rule_ids'] : [];\n";
         $out .= "                foreach (\$mod_rules['custom_rules_enforced'] as \$c_rule) {\n";
         $out .= "                    \$c_id = (string) (\$c_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
@@ -855,7 +962,8 @@ class MicroWafCompiler {
         }
 
         // Responder function
-        $out .= "function webcare_micro_waf_block(string \$ip, string \$rule_id, string \$desc, string \$fail2ban_log): void {\n";
+        $out .= "if (!function_exists('webcare_micro_waf_block')) {\n";
+        $out .= "    function webcare_micro_waf_block(string \$ip, string \$rule_id, string \$desc, string \$fail2ban_log): void {\n";
         $out .= "    // Log in Linux Fail2ban / CrowdSec compatible format (strip CRLF to prevent log injection)\n";
         $out .= "    \$timestamp = gmdate('Y-m-d H:i:s');\n";
         $out .= "    \$uri = isset(\$_SERVER['REQUEST_URI']) ? str_replace([\"\\r\", \"\\n\"], '', substr(\$_SERVER['REQUEST_URI'], 0, 200)) : '/';\n";
@@ -886,7 +994,8 @@ class MicroWafCompiler {
         $out .= "    echo '<p>If you believe this is an error, please contact the site administrator.</p>';\n";
         $out .= "    echo '<div class=\"footer\">Protected by WebCare Pro Security &bull; Zero-Resource Preload Shield</div>';\n";
         $out .= "    echo '</div></body></html>';\n";
-        $out .= "    exit;\n";
+        $out .= "        exit;\n";
+        $out .= "    }\n";
         $out .= "}\n";
 
         return $out;
@@ -1039,6 +1148,9 @@ class MicroWafCompiler {
 
         $saved_status = get_option(self::OPTION_STATUS, []);
         $bypass_token = get_option('webcareproscan_micro_waf_bypass_token', '');
+        $signed_bypass = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            ? \WebCareProScanner\Firewall\FirewallEngine::generate_waf_bypass_token()
+            : '';
         $fail2ban_log = self::get_fail2ban_log_path();
 
         $recent_drops = [];
@@ -1056,9 +1168,10 @@ class MicroWafCompiler {
             'compiled_file'     => $compiled_file,
             'file_size_bytes'   => $is_compiled ? filesize($compiled_file) : 0,
             'target_info'       => $target_info,
-            'saved_status'      => $saved_status,
-            'bypass_token'      => $bypass_token,
-            'fail2ban_log'      => $fail2ban_log,
+            'saved_status'        => $saved_status,
+            'bypass_token'        => $bypass_token,
+            'signed_bypass_token' => $signed_bypass,
+            'fail2ban_log'        => $fail2ban_log,
             'recent_drops'      => $recent_drops,
             'recent_drop_count' => count($recent_drops),
         ];

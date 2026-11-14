@@ -1,4 +1,17 @@
 ﻿v:2.14.0 - 2026-11-14
+- Pre-Boot Micro-WAF & Cryptographic Preload Auth Hardening (MW-01, MW-02, MW-03, WCP-11, WCP-13):
+  * MW-01 & WCP-13 (Cryptographic Preload Auth Verification):
+    - Completely eliminated unverified wordpress_logged_in_* cookie-name substring checks prior to WordPress core bootstrap.
+    - Implemented FirewallEngine::issue_preload_auth_cookie(), sync_preload_auth_cookie(), and clear_preload_auth_cookie() to issue and rotate an HttpOnly, Secure, SameSite=Lax cryptographic cookie (webcare_preload_auth) signed via HMAC (wp_salt('auth')) and bound to the client IP.
+    - Standalone pre-boot Micro-WAF verifies webcare_preload_auth via hash_equals() and requires verified administrator privileges (mod_is_admin_user) when IP whitelist requires admin authentication.
+    - Decoupled visual custom rule allow exemptions so allow rules evaluate for authenticated sessions while preserving blocking protection.
+    - Enforced WAF-CAF-DORMANT-AJAX-ACTION across all requests targeting dormant/deactivated plugin actions on admin-ajax.php.
+  * MW-02 (Signed Time-Bound Emergency WAF Bypass):
+    - Replaced raw static GET ?webcare_waf_bypass= URL parameter checks with signed, time-bounded verification (<timestamp>.<hmac> with 15-minute validity window) and HTTP_X_WEBCARE_WAF_BYPASS administrative header support. Raw static secrets in query strings are strictly rejected.
+  * MW-03 & WCP-11 (IPv6 Normalization, Nested Uploads & Contextual Administrator Regex):
+    - Normalized IPv4-mapped IPv6 addresses (::ffff:x.x.x.x) across $webcare_match_ip_list, $raw_peer, $ip, $vis_cidr_fn, FirewallEngine::get_client_ip(), and FirewallEngine::ip_in_range().
+    - Flattened multi-dimensional $_FILES hierarchies recursively via array_walk_recursive to extract all upload extensions.
+    - Replaced bare |administrator pattern in MicroWafCompiler and ModularFirewallSynthesizer with contextual regex requiring role or capability keys, preventing false-positive blocks on benign contact forms and user comments.
 - Deep Audit Security & Data Integrity Remediation (WCP-01 through WCP-10):
   * WCP-01 & WCP-10 (Atomic DB-First Quarantine & Verified Stream Handling):
     - Guaranteed zero data loss by recording quarantine metadata in the database before deleting original files; failed DB inserts immediately preserve the source file.
