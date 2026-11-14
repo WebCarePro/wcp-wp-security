@@ -508,34 +508,59 @@ class VaultRotator {
             return false;
         }
 
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
-        $frame_hdr = fread($fp, 32);
-        if (strlen($frame_hdr) !== 32) {
+        $json_str = trim(substr($format_line, strlen('// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')));
+        $meta = json_decode($json_str, true);
+        if (!is_array($meta) || empty($meta['chunks']) || (int) $meta['chunks'] < 1) {
             // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
             fclose($fp);
             return false;
         }
 
-        $hdr_parts = unpack('Nlen', substr($frame_hdr, 0, 4));
-        $cipher_len = $hdr_parts['len'] ?? 0;
-        $iv  = substr($frame_hdr, 4, 12);
-        $tag = substr($frame_hdr, 16, 16);
-
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
-        $ciphertext = fread($fp, $cipher_len);
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-        fclose($fp);
-
-        if (strlen($ciphertext) !== $cipher_len) {
-            return false;
-        }
-
+        $total_chunks = (int) $meta['chunks'];
         $raw_key = strlen($binary_key) === 64 && ctype_xdigit($binary_key)
             ? (string) hex2bin($binary_key)
             : (strlen($binary_key) === 32 ? $binary_key : hash('sha256', $binary_key, true));
 
-        $res = @openssl_decrypt($ciphertext, 'aes-256-gcm', $raw_key, OPENSSL_RAW_DATA, $iv, $tag, pack('N', 0));
-        return $res !== false;
+        // Verify ALL chunks under key (Finding 1.3)
+        for ($chunk_idx = 0; $chunk_idx < $total_chunks; $chunk_idx++) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+            $len_buf = fread($fp, 4);
+            if ($len_buf === false || strlen($len_buf) < 4) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($fp);
+                return false;
+            }
+
+            $cipher_len = unpack('N', $len_buf)[1];
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+            $iv  = fread($fp, 12);
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+            $tag = fread($fp, 16);
+            if (strlen($iv) !== 12 || strlen($tag) !== 16) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($fp);
+                return false;
+            }
+
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+            $ciphertext = ($cipher_len > 0) ? fread($fp, $cipher_len) : '';
+            if (strlen($ciphertext) !== $cipher_len) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($fp);
+                return false;
+            }
+
+            $res = @openssl_decrypt($ciphertext, 'aes-256-gcm', $raw_key, OPENSSL_RAW_DATA, $iv, $tag, pack('N', $chunk_idx));
+            if ($res === false) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                fclose($fp);
+                return false;
+            }
+        }
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        fclose($fp);
+        return true;
     }
 
     /**
@@ -591,16 +616,19 @@ class VaultRotator {
                     continue;
                 }
 
-                // Atomically swap in re-encrypted vault archive
+                // Verify the newly encrypted archive is 100% decipherable under new key before replacing (Finding 1.3)
+                if (!self::is_chunked_vault_under_key($temp_reenc, $new_binary_key)) {
+                    wp_delete_file($temp_reenc);
+                    $result['failed'][] = 'archive:' . basename($file_path);
+                    continue;
+                }
+
+                // Atomically swap in re-encrypted vault archive (never destructive copy - Finding 1.3)
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic swap of rotated archive
                 if (!@rename($temp_reenc, $file_path)) {
-                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Fallback copy when rename across filesystems fails
-                    if (!@copy($temp_reenc, $file_path)) {
-                        wp_delete_file($temp_reenc);
-                        $result['failed'][] = 'archive:' . basename($file_path);
-                        continue;
-                    }
                     wp_delete_file($temp_reenc);
+                    $result['failed'][] = 'archive:' . basename($file_path);
+                    continue;
                 }
 
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
@@ -629,6 +657,16 @@ class VaultRotator {
             $header  = substr($raw, 0, $split_pos);
             $payload = substr($raw, $split_pos);
 
+            // Strip format prefix if present (V2_INLINE_AEAD support - Finding 1.3)
+            $format_prefix = '';
+            if (str_starts_with($payload, '// WEBCARE_VAULT_FORMAT:V2_INLINE_AEAD')) {
+                $nl_pos = strpos($payload, "\n");
+                if ($nl_pos !== false) {
+                    $format_prefix = substr($payload, 0, $nl_pos + 1);
+                    $payload = ltrim(substr($payload, $nl_pos + 1), "\r\n");
+                }
+            }
+
             if (!SecretVault::is_encrypted($payload)) {
                 continue;
             }
@@ -646,7 +684,7 @@ class VaultRotator {
             try {
                 $reencrypted = SecretVault::encrypt_with_key($plain, $new_binary_key);
                 $temp_file   = $file_path . '.rot_' . bin2hex(random_bytes(4));
-                $new_content = $header . $reencrypted;
+                $new_content = $header . $format_prefix . $reencrypted;
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
                 if (@file_put_contents($temp_file, $new_content, LOCK_EX) === strlen($new_content)) {
                     // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename

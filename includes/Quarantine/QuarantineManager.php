@@ -401,31 +401,66 @@ class QuarantineManager {
             ];
         }
 
-        // Decrypt authenticated vault archive to destination (Q-02, Q-03)
+        // Decrypt authenticated vault archive to an isolated staging file in the target directory (Finding 2.1)
+        $staging_path = $dest_path . '.webcare_rst_stage_' . bin2hex(random_bytes(6));
         $dec_res = \WebCareProScanner\Security\SecretVault::decrypt_vault_to_file(
             $source_path,
-            $dest_path,
+            $staging_path,
             null,
             $allow_legacy_unverified
         );
 
         if (empty($dec_res['success'])) {
+            if (file_exists($staging_path)) {
+                wp_delete_file($staging_path);
+            }
             return [
                 'success' => false,
                 'message' => 'Cryptographic decryption failed: ' . ($dec_res['error'] ?? 'Corrupted or unauthenticated vault archive.'),
             ];
         }
 
-        // Verify restored file hash against recorded SHA-256
+        // Verify restored file hash against recorded SHA-256 on STAGING file BEFORE touching target destination (Finding 2.1)
         if ($expected_hash !== '') {
-            $restored_hash = @hash_file('sha256', $dest_path);
+            $restored_hash = @hash_file('sha256', $staging_path);
             if ($restored_hash === false || !hash_equals($expected_hash, $restored_hash)) {
-                wp_delete_file($dest_path);
+                wp_delete_file($staging_path);
                 return [
                     'success' => false,
                     'message' => 'Integrity check failed: Restored file SHA-256 does not match quarantine record.',
                 ];
             }
+        }
+
+        // Apply atomic no-clobber commit (Finding 2.1)
+        if (!$overwrite) {
+            // Atomic check: Open with 'x' (exclusive create) to guarantee no-clobber without TOCTOU race
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+            $check_fp = @fopen($dest_path, 'xb');
+            if ($check_fp === false) {
+                wp_delete_file($staging_path);
+                return [
+                    'success'  => false,
+                    'conflict' => true,
+                    'message'  => __('Restore aborted: A file already exists at the destination path.', 'webcare-pro-security'),
+                ];
+            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($check_fp);
+        }
+
+        // Move verified restored staging file into destination path
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic swap of restored staging file
+        if (!@rename($staging_path, $dest_path)) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Fallback copy when rename fails across volumes
+            if (!@copy($staging_path, $dest_path)) {
+                wp_delete_file($staging_path);
+                return [
+                    'success' => false,
+                    'message' => 'Failed to commit restored file into destination path. Check filesystem permissions.',
+                ];
+            }
+            wp_delete_file($staging_path);
         }
 
         // Restore file permissions

@@ -1251,9 +1251,9 @@ class VisualRuleExpressionEngine {
             && class_exists('\\WebCareProScanner\\Cloudflare\\CloudflareService')
             && CloudflareService::is_configured();
         $remote_peer   = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
-        $trusted_proxy = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
-            && \WebCareProScanner\Firewall\FirewallEngine::is_trusted_proxy($remote_peer);
-        $cf_proxied    = $trusted_proxy && (!empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']));
+        $is_cf_peer    = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            && \WebCareProScanner\Firewall\FirewallEngine::is_cloudflare_ip($remote_peer);
+        $cf_proxied    = $is_cf_peer && (!empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']));
         $cf_zone_id    = (string) ($cf_settings['cloudflare_zone_id'] ?? '');
         $cf_zone_name  = '';
         $cf_connected  = false;
@@ -1487,9 +1487,9 @@ class VisualRuleExpressionEngine {
         $has_admin_guard  = false;
         $touches_wp_admin = false;
         $remote_peer      = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
-        $trusted_proxy    = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
-            && \WebCareProScanner\Firewall\FirewallEngine::is_trusted_proxy($remote_peer);
-        $cf_proxied       = $trusted_proxy && (!empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']));
+        $is_cf_peer       = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            && \WebCareProScanner\Firewall\FirewallEngine::is_cloudflare_ip($remote_peer);
+        $cf_proxied       = $is_cf_peer && (!empty($_SERVER['HTTP_CF_RAY']) || !empty($_SERVER['HTTP_CF_CONNECTING_IP']));
 
         foreach ($conditions as $grp) {
             foreach (($grp['rules'] ?? []) as $r) {

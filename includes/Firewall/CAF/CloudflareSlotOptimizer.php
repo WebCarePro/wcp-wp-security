@@ -66,17 +66,19 @@ class CloudflareSlotOptimizer {
             ];
         }
 
-        // Check if this is a fresh zone where the phase entrypoint ruleset hasn't been created yet
-        $err_code = (int) ($res['errors'][0]['code'] ?? 0);
+        // Check if this is a fresh zone where the phase entrypoint ruleset hasn't been created yet (Finding 2.6)
+        $err_code  = (int) ($res['errors'][0]['code'] ?? 0);
         $http_code = (int) ($res['http_code'] ?? 0);
-        $err_msg = strtolower((string) ($res['errors'][0]['message'] ?? ''));
+        $err_msg   = strtolower((string) ($res['errors'][0]['message'] ?? ''));
 
+        // Strictly recognize Cloudflare code 10003 or specific "ruleset not found" message (Finding 2.6)
         $is_fresh_entrypoint = (
-            $http_code === 404
-            || $err_code === 10003
-            || str_contains($err_msg, 'ruleset not found')
-            || str_contains($err_msg, 'could not find')
-            || str_contains($err_msg, 'does not exist')
+            $err_code === 10003
+            || ($http_code === 404 && (
+                str_contains($err_msg, 'ruleset not found')
+                || str_contains($err_msg, 'could not find ruleset')
+                || str_contains($err_msg, 'phase entrypoint does not exist')
+            ))
         );
 
         if ($is_fresh_entrypoint) {
@@ -345,21 +347,10 @@ class CloudflareSlotOptimizer {
             $slot_budget
         );
 
-        // 6. Merge in non-shadowing priority order (CF-05):
-        // Customer allow/skip rules -> Visual allow/skip rules -> Visual block rules -> WebCare compound rules -> User other rules
-        $user_allow_rules   = [];
-        $user_other_rules   = [];
+        // 6. Merge rules preserving existing customer order while placing Visual allow rules first (Finding 2.5):
+        // Visual allow rules -> WebCare compound rules -> User existing rules (intact relative order) -> Visual block rules
         $visual_allow_rules = [];
         $visual_block_rules = [];
-
-        foreach ($user_rules as $r) {
-            $action = (string) ($r['action'] ?? '');
-            if (in_array($action, ['skip', 'allow'], true)) {
-                $user_allow_rules[] = $r;
-            } else {
-                $user_other_rules[] = $r;
-            }
-        }
 
         foreach ($visual_rules as $vr) {
             $action = (string) ($vr['action'] ?? '');
@@ -371,11 +362,10 @@ class CloudflareSlotOptimizer {
         }
 
         $final_rules = array_merge(
-            $user_allow_rules,
             $visual_allow_rules,
-            $visual_block_rules,
             $webcare_rules,
-            $user_other_rules
+            $user_rules,
+            $visual_block_rules
         );
 
         $payload = [

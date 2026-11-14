@@ -382,23 +382,33 @@ class SecretVault {
         ];
 
         $header_line = "// WEBCARE_VAULT_FORMAT:" . self::VAULT_FORMAT_CHUNKED . ":" . wp_json_encode($meta) . "\n";
-        $written_hdr = fwrite($dst_fp, self::GUARD_HEADER . $header_line);
-        if ($written_hdr === false) {
+        $header_full = self::GUARD_HEADER . $header_line;
+        $written_hdr = fwrite($dst_fp, $header_full);
+        if ($written_hdr !== strlen($header_full)) {
             fclose($src_fp);
             fclose($dst_fp);
             wp_delete_file($temp_dest);
-            return ['success' => false, 'error' => 'Failed to write vault guard header.'];
+            return ['success' => false, 'error' => 'Failed to write complete vault guard header.'];
         }
 
+        $h_ctx = hash_init('sha256');
+        $bytes_read = 0;
         $chunk_idx = 0;
+
         while (!feof($src_fp)) {
             $chunk = fread($src_fp, $chunk_size);
             if ($chunk === false) {
-                break;
+                fclose($src_fp);
+                fclose($dst_fp);
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => "I/O read failure on source file at chunk index {$chunk_idx}."];
             }
             if ($chunk === '' && $chunk_idx > 0) {
                 break;
             }
+
+            $bytes_read += strlen($chunk);
+            hash_update($h_ctx, $chunk);
 
             $iv = random_bytes(12);
             $tag = '';
@@ -413,8 +423,9 @@ class SecretVault {
 
             $cipher_len = strlen($ciphertext);
             $frame_hdr = pack('N', $cipher_len) . $iv . $tag;
-            $frame_bytes = fwrite($dst_fp, $frame_hdr . $ciphertext);
-            if ($frame_bytes !== (32 + $cipher_len)) {
+            $frame_payload = $frame_hdr . $ciphertext;
+            $frame_bytes = fwrite($dst_fp, $frame_payload);
+            if ($frame_bytes !== strlen($frame_payload)) {
                 fclose($src_fp);
                 fclose($dst_fp);
                 wp_delete_file($temp_dest);
@@ -431,12 +442,40 @@ class SecretVault {
         fflush($dst_fp);
         fclose($dst_fp);
 
+        // Verification checks (Finding 1.1):
+        // 1. Verify total chunks written matches declared chunk count
+        if ($chunk_idx !== $total_chunks) {
+            wp_delete_file($temp_dest);
+            return ['success' => false, 'error' => "Chunk count mismatch: expected {$total_chunks}, wrote {$chunk_idx}."];
+        }
+
+        // 2. Verify total bytes read matches source file size
+        if ($bytes_read !== $file_size) {
+            wp_delete_file($temp_dest);
+            return ['success' => false, 'error' => "Byte count mismatch: expected {$file_size} bytes, read {$bytes_read} bytes."];
+        }
+
+        // 3. Verify streamed plaintext SHA-256 matches initial file hash
+        $streamed_sha = hash_final($h_ctx);
+        if (!hash_equals($orig_sha256, $streamed_sha)) {
+            wp_delete_file($temp_dest);
+            return ['success' => false, 'error' => 'Streamed plaintext SHA-256 does not match original pre-encryption hash.'];
+        }
+
+        // 4. Atomically finalize to destination
         if (!@rename($temp_dest, $dest_path)) {
             wp_delete_file($temp_dest);
             return ['success' => false, 'error' => 'Failed to atomically finalize encrypted vault file.'];
         }
 
         @chmod($dest_path, 0600);
+
+        // 5. Independent validation: Reopen and verify the completed vault archive structure
+        $inspect = self::inspect_vault_file($dest_path);
+        if (empty($inspect['valid']) || ($inspect['format'] ?? '') !== self::VAULT_FORMAT_CHUNKED || ($inspect['chunks'] ?? 0) !== $total_chunks) {
+            wp_delete_file($dest_path);
+            return ['success' => false, 'error' => 'Post-encryption validation failed: completed vault archive structure is invalid.'];
+        }
 
         return [
             'success'     => true,
@@ -508,7 +547,11 @@ class SecretVault {
         if (is_string($format_line) && str_starts_with($format_line, '// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')) {
             $format = self::VAULT_FORMAT_CHUNKED;
             $json_str = trim(substr($format_line, strlen('// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')));
-            $meta = json_decode($json_str, true) ?: [];
+            $meta = json_decode($json_str, true);
+            if (!is_array($meta) || empty($meta)) {
+                fclose($v_fp);
+                return ['success' => false, 'error' => 'Corrupt vault header: malformed JSON metadata in chunked archive.'];
+            }
         } elseif (is_string($format_line) && str_starts_with($format_line, '// WEBCARE_VAULT_FORMAT:V2_INLINE_AEAD')) {
             $format = self::VAULT_FORMAT_INLINE;
         } else {
@@ -529,14 +572,33 @@ class SecretVault {
         $temp_dest = $dest_path . '.webcare_rst_tmp_' . bin2hex(random_bytes(6));
 
         if ($format === self::VAULT_FORMAT_CHUNKED) {
-            $total_chunks = (int) ($meta['chunks'] ?? 0);
-            $expected_sha = (string) ($meta['orig_sha256'] ?? '');
+            $total_chunks  = (int) ($meta['chunks'] ?? 0);
+            $expected_sha  = (string) ($meta['orig_sha256'] ?? '');
+            $expected_size = isset($meta['file_size']) ? (int) $meta['file_size'] : -1;
+            $chunk_size    = (int) ($meta['chunk_size'] ?? 0);
+
+            // Strict metadata schema and boundary validation (Finding 1.2)
+            if (
+                ($meta['format'] ?? '') !== self::VAULT_FORMAT_CHUNKED
+                || $total_chunks < 1
+                || $total_chunks > 1000000
+                || $expected_size < 0
+                || $chunk_size < 1024
+                || $chunk_size > 10485760
+                || !preg_match('/^[a-f0-9]{64}$/i', $expected_sha)
+            ) {
+                fclose($v_fp);
+                return ['success' => false, 'error' => 'Vault metadata validation rejected: invalid chunk schema or hash specification.'];
+            }
 
             $dst_fp = @fopen($temp_dest, 'wb');
             if (!$dst_fp) {
                 fclose($v_fp);
                 return ['success' => false, 'error' => 'Failed to create destination stream.'];
             }
+
+            $dec_h_ctx       = hash_init('sha256');
+            $dec_bytes_total = 0;
 
             for ($chunk_idx = 0; $chunk_idx < $total_chunks; $chunk_idx++) {
                 $len_buf = fread($v_fp, 4);
@@ -548,6 +610,13 @@ class SecretVault {
                 }
 
                 $cipher_len = unpack('N', $len_buf)[1];
+                if ($cipher_len > ($chunk_size + 64)) {
+                    fclose($v_fp);
+                    fclose($dst_fp);
+                    wp_delete_file($temp_dest);
+                    return ['success' => false, 'error' => "Vault frame {$chunk_idx} exceeds maximum permitted chunk length."];
+                }
+
                 $iv = fread($v_fp, 12);
                 $tag = fread($v_fp, 16);
                 if (strlen($iv) !== 12 || strlen($tag) !== 16) {
@@ -589,20 +658,40 @@ class SecretVault {
                 }
 
                 if ($plain !== '') {
-                    fwrite($dst_fp, $plain);
+                    $written = fwrite($dst_fp, $plain);
+                    if ($written !== strlen($plain)) {
+                        fclose($v_fp);
+                        fclose($dst_fp);
+                        wp_delete_file($temp_dest);
+                        return ['success' => false, 'error' => "Disk write failure while writing restored chunk {$chunk_idx}."];
+                    }
+                    $dec_bytes_total += strlen($plain);
+                    hash_update($dec_h_ctx, $plain);
                 }
             }
 
+            // Check for trailing unexpected data in vault stream
+            $trailing = fread($v_fp, 1024);
             fclose($v_fp);
             fflush($dst_fp);
             fclose($dst_fp);
 
-            if ($expected_sha !== '') {
-                $actual_sha = @hash_file('sha256', $temp_dest);
-                if (!hash_equals($expected_sha, (string) $actual_sha)) {
-                    wp_delete_file($temp_dest);
-                    return ['success' => false, 'error' => 'Integrity verification failed: Decrypted file SHA-256 does not match vault manifest.'];
-                }
+            if ($trailing !== '' && $trailing !== false) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => 'Integrity verification failed: unexpected trailing data beyond declared chunks in vault file.'];
+            }
+
+            // Verify decrypted byte count strictly matches declared file size
+            if ($dec_bytes_total !== $expected_size) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => "Byte count verification failed: expected {$expected_size} bytes, decrypted {$dec_bytes_total} bytes."];
+            }
+
+            // Verify decrypted plaintext hash strictly matches declared SHA-256
+            $actual_sha = hash_final($dec_h_ctx);
+            if (!hash_equals($expected_sha, (string) $actual_sha)) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => 'Integrity verification failed: Decrypted file SHA-256 does not match vault manifest.'];
             }
 
             if (!@rename($temp_dest, $dest_path)) {
@@ -613,8 +702,8 @@ class SecretVault {
             return [
                 'success'   => true,
                 'dest_path' => $dest_path,
-                'sha256'    => $expected_sha ?: @hash_file('sha256', $dest_path),
-                'bytes'     => (int) @filesize($dest_path),
+                'sha256'    => $expected_sha,
+                'bytes'     => $dec_bytes_total,
                 'format'    => self::VAULT_FORMAT_CHUNKED,
             ];
         }

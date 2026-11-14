@@ -1,4 +1,29 @@
 ﻿v:2.14.0 - 2026-11-14
+- Deep Architecture & Data-Integrity Hardening (Findings 1.1–1.5, 2.1–2.7):
+  * Finding 1.1 & 1.2 (Vault I/O Error Fail-Closed & Strict Chunk Metadata Validation):
+    - Replaced silent loop break on fread() === false with explicit failure abortion in SecretVault::encrypt_file_to_vault(), deleting temporary files before returning.
+    - Verified exact byte counts on every fwrite(), verified written chunk count equals declared chunk count, and enforced incremental streaming plaintext SHA-256 validation against initial pre-encryption hash.
+    - Added independent post-encryption structural inspection before returning success.
+    - Hardened SecretVault::decrypt_vault_to_file(): strictly rejects malformed, incomplete, or corrupted JSON headers; requires positive chunk counts, valid 64-char hex SHA-256 hash, non-negative file sizes, and valid chunk sizes; rejects trailing data; and verifies decrypted byte count and streamed hash strictly match declared manifest values before committing to disk.
+  * Finding 1.3 (Key Rotation Whole-Archive Verification & V2 Inline Support):
+    - Upgraded VaultRotator::is_chunked_vault_under_key() to verify all chunks of every chunked archive under the key rather than stopping after the first chunk.
+    - Added explicit support for // WEBCARE_VAULT_FORMAT:V2_INLINE_AEAD archives during disk rotation, stripping format headers before payload decryption and re-attaching on save.
+    - Eliminated non-atomic destructive copy fallbacks during rotation replacement, strictly requiring verified atomic renames to prevent backup corruption.
+  * Finding 1.4 & 2.7 (Elimination of Static Header WAF Bypass & Scoped URL Allowlist):
+    - Completely removed static administrative header bypass from MicroWafCompiler.php, routing 100% of emergency bypasses through signed, time-bound, IP-bound tokens (<timestamp>.<hmac>).
+    - Scoped pre-boot URL allowlists so that whitelisted paths bypass custom/CAF heuristics while strictly enforcing critical zero-tolerance exploit signatures (SQLi, RCE, LFI, and PHP script upload execution).
+  * Finding 1.5 (Strict Cloudflare Header Trust Verification):
+    - Hardened FirewallEngine::get_client_ip() to accept HTTP_CF_CONNECTING_IP strictly when REMOTE_ADDR is within verified Cloudflare network CIDRs via is_cloudflare_ip(). Non-Cloudflare trusted proxies rely solely on right-to-left X-Forwarded-For traversal, preventing header spoofing.
+    - Updated RequestContext and VisualRuleExpressionEngine to trust HTTP_CF_IPCOUNTRY, HTTP_CF_IPASN, and HTTP_CF_RAY exclusively from verified Cloudflare peer addresses.
+  * Finding 2.1 & 2.2 (Atomic Pre-Commit Quarantine Restore & Transaction Locking):
+    - Upgraded QuarantineManager::restore_file() to decrypt to a staging file and verify SHA-256 before touching the target destination. Enforced atomic no-clobber protection via exclusive file creation (fopen(..., 'xb')) when overwrite is disabled.
+    - Hardened TransactionalRemediation::rollback_transaction() with transactional exclusive file locking (flock(LOCK_EX)) to make status inspection, status mutation, and rollback execution completely atomic against concurrent requests.
+  * Finding 2.3, 2.4, 2.5 & 2.6 (Atomic Mutex Locking, Account List Confirmation & 404 Guard):
+    - Added atomic database-level lock acquisition (acquire_sync_lock() / release_sync_lock()) using add_option() with unique owner tokens in CloudflareIpListSynchronizer.
+    - Persisted ban intents to OPTION_BAN_QUEUE immediately before dispatching post-response shutdown flushes.
+    - Verified Cloudflare Account List item IDs via API list query on sync, failing closed and downgrading to zone rules instead of recording empty item IDs.
+    - Hardened CloudflareSlotOptimizer::get_zone_rules_safe() to strictly recognize error code 10003 or 'ruleset not found' for uninitialized zones, failing closed on all other 404 responses.
+    - Preserved existing customer Cloudflare rule ordering intact, preventing customer allow/skip rules from preempting WebCare compound protections.
 - Origin Survival Mode Velocity & Edge Defense Escalation (OS-01, OS-02, OS-03):
   * OS-01 (Rolling 60-Second Block Velocity Buffer):
     - Replaced flawed 24-hour total division ($blocked_today / 60) with a real 60-second rolling window transient bucket (webcare_waf_60s_bucket) in OriginLoadCircuitBreaker::record_blocked_probe().

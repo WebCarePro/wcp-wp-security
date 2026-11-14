@@ -127,6 +127,17 @@ class CloudflareIpListSynchronizer {
             'last_error' => '',
         ];
 
+        // Always persist ban intent immediately to persistent queue (Finding 2.3)
+        $queue = get_option(self::OPTION_BAN_QUEUE, []);
+        if (!is_array($queue)) {
+            $queue = [];
+        }
+        $queue[$ip] = $entry;
+        if (count($queue) > 500) {
+            $queue = array_slice($queue, -500, null, true);
+        }
+        update_option(self::OPTION_BAN_QUEUE, $queue, false);
+
         // Burst limiter: Check how many instant bans were pushed in the current 10-second window
         $burst_key = 'webcare_cf_instant_burst';
         $burst_count = function_exists('apcu_fetch') && ini_get('apc.enabled')
@@ -148,24 +159,7 @@ class CloudflareIpListSynchronizer {
             return;
         }
 
-        // High-velocity swarm (>5 bans in 10s): add to batch queue for subnet aggregation and background flush
-        $queue = get_option(self::OPTION_BAN_QUEUE, []);
-        if (!is_array($queue)) {
-            $queue = [];
-        }
-
-        $queue[$ip] = $entry;
-
-        // Keep queue capped at 500 entries to prevent option bloat
-        if (count($queue) > 500) {
-            $queue = array_slice($queue, -500, null, true);
-        }
-
-        update_option(self::OPTION_BAN_QUEUE, $queue, false);
-
-        // WP-Cron Reliability on Edge-Cached Sites:
-        // When Cloudflare aggressively caches edge pages, low-traffic sites may not trigger cron on schedule.
-        // If queue exceeds 25 pending bans, immediately trigger background loopback flush.
+        // High-velocity swarm (>5 bans in 10s): background flush if queue >= 25 entries
         if (count($queue) >= 25) {
             self::trigger_background_queue_flush();
         }
@@ -173,6 +167,7 @@ class CloudflareIpListSynchronizer {
 
     /**
      * Flush immediate bans after sending the HTTP 403 response to the client (0ms visitor latency).
+     * Enforces atomic lock synchronization with queue processing (Finding 2.3).
      */
     public static function flush_immediate_shutdown_bans(): void {
         if (empty(self::$shutdown_immediate_queue)) {
@@ -186,57 +181,69 @@ class CloudflareIpListSynchronizer {
             @litespeed_finish_request();
         }
 
-        $sync = new self();
-        $items_to_sync = self::$shutdown_immediate_queue;
-        self::$shutdown_immediate_queue = [];
-
-        $targets = $sync->aggregate_subnets($items_to_sync);
-        $scope = $sync->detect_api_scope();
-
-        $result = ['synced_targets' => [], 'error' => ''];
-        if ($scope === 'account') {
-            $result = $sync->sync_via_account_list($targets, $items_to_sync);
-        } elseif ($scope === 'zone') {
-            $result = $sync->sync_via_zone_access_rules($targets, $items_to_sync);
+        $lock_token = self::acquire_sync_lock(45);
+        if ($lock_token === null) {
+            // Another worker or cron is syncing; items are safely persisted in OPTION_BAN_QUEUE
+            return;
         }
 
-        // Determine which items were confirmed synced (CF-01)
-        $confirmed_targets = $result['synced_targets'] ?? [];
-        $confirmed_source_ips = [];
-        foreach ($targets as $t) {
-            if (in_array($t['target'], $confirmed_targets, true)) {
-                foreach (($t['source_ips'] ?? [$t['target']]) as $sip) {
-                    $confirmed_source_ips[$sip] = true;
+        try {
+            $sync = new self();
+            $items_to_sync = self::$shutdown_immediate_queue;
+            self::$shutdown_immediate_queue = [];
+
+            $targets = $sync->aggregate_subnets($items_to_sync);
+            $scope = $sync->detect_api_scope();
+
+            $result = ['synced_targets' => [], 'error' => ''];
+            if ($scope === 'account') {
+                $result = $sync->sync_via_account_list($targets, $items_to_sync);
+            } elseif ($scope === 'zone') {
+                $result = $sync->sync_via_zone_access_rules($targets, $items_to_sync);
+            }
+
+            // Determine which items were confirmed synced (CF-01)
+            $confirmed_targets = $result['synced_targets'] ?? [];
+            $confirmed_source_ips = [];
+            foreach ($targets as $t) {
+                if (in_array($t['target'], $confirmed_targets, true)) {
+                    foreach (($t['source_ips'] ?? [$t['target']]) as $sip) {
+                        $confirmed_source_ips[$sip] = true;
+                    }
                 }
             }
-        }
 
-        // Merge any unconfirmed items back into OPTION_BAN_QUEUE so they are never lost
-        $unsynced_items = [];
-        $now = time();
-        foreach ($items_to_sync as $ip => $entry) {
-            if (empty($confirmed_source_ips[$ip])) {
-                $attempts = ((int) ($entry['attempts'] ?? 0)) + 1;
-                $entry['status']     = ($attempts >= 5) ? 'failed' : 'retry';
-                $entry['attempts']   = $attempts;
-                $entry['next_retry'] = $now + min(3600, 30 * (2 ** $attempts));
-                $entry['last_error'] = (string) ($result['error'] ?? 'Shutdown flush unconfirmed');
-                $unsynced_items[$ip] = $entry;
-            }
-        }
-
-        if (!empty($unsynced_items)) {
             $queue = get_option(self::OPTION_BAN_QUEUE, []);
             if (!is_array($queue)) {
                 $queue = [];
             }
-            foreach ($unsynced_items as $uip => $uentry) {
-                $queue[$uip] = $uentry;
+
+            // Remove confirmed items from OPTION_BAN_QUEUE
+            if (!empty($confirmed_source_ips)) {
+                foreach (array_keys($confirmed_source_ips) as $cip) {
+                    unset($queue[$cip]);
+                }
             }
+
+            // Update any unconfirmed items in OPTION_BAN_QUEUE with retry backoff
+            $now = time();
+            foreach ($items_to_sync as $ip => $entry) {
+                if (empty($confirmed_source_ips[$ip])) {
+                    $attempts = ((int) ($entry['attempts'] ?? 0)) + 1;
+                    $entry['status']     = ($attempts >= 5) ? 'failed' : 'retry';
+                    $entry['attempts']   = $attempts;
+                    $entry['next_retry'] = $now + min(3600, 30 * (2 ** $attempts));
+                    $entry['last_error'] = (string) ($result['error'] ?? 'Shutdown flush unconfirmed');
+                    $queue[$ip] = $entry;
+                }
+            }
+
             if (count($queue) > 500) {
                 $queue = array_slice($queue, -500, null, true);
             }
             update_option(self::OPTION_BAN_QUEUE, $queue, false);
+        } finally {
+            self::release_sync_lock($lock_token);
         }
     }
 
@@ -407,18 +414,66 @@ class CloudflareIpListSynchronizer {
     }
 
     /**
+     * Acquire atomic database-level synchronization lock using add_option (Finding 2.3).
+     *
+     * @param int $ttl Lock lifetime in seconds (default 60)
+     * @return string|null Lock token if successfully acquired, null if already locked
+     */
+    public static function acquire_sync_lock(int $ttl = 60): ?string {
+        $now = time();
+        $token = bin2hex(random_bytes(16)) . '|' . ($now + $ttl);
+        $lock_key = 'webcare_cf_sync_atomic_lock';
+
+        // Atomic DB insertion via add_option (fails if option already exists)
+        if (add_option($lock_key, $token, '', 'no')) {
+            return $token;
+        }
+
+        // Check if existing lock is expired
+        $existing = (string) get_option($lock_key, '');
+        if ($existing !== '') {
+            $parts = explode('|', $existing, 2);
+            $exp = (int) ($parts[1] ?? 0);
+            if ($exp > 0 && $exp < $now) {
+                // Lock expired: replace atomically
+                if (update_option($lock_key, $token, false)) {
+                    return $token;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Release atomic synchronization lock only if held by current worker (Finding 2.3).
+     *
+     * @param string|null $token
+     * @return void
+     */
+    public static function release_sync_lock(?string $token): void {
+        if ($token === null || $token === '') {
+            return;
+        }
+        $lock_key = 'webcare_cf_sync_atomic_lock';
+        $current = (string) get_option($lock_key, '');
+        if ($current === $token) {
+            delete_option($lock_key);
+        }
+    }
+
+    /**
      * Flush queued bans to Cloudflare Edge and prune expired temporary bans.
-     * Enforces durable queue state machine, retry backoff and atomic mutex locking (CF-01).
+     * Enforces durable queue state machine, retry backoff and atomic mutex locking (CF-01, Finding 2.3).
      *
      * @return int Number of synchronized items
      */
     public function process_sync_queue(): int {
-        // Atomic mutex lock (CF-01): 60-second transient lock prevents race conditions
-        $lock_key = 'webcare_cf_sync_queue_lock';
-        if (get_transient($lock_key)) {
+        // Atomic mutex lock (CF-01, Finding 2.3): atomic DB lock prevents race conditions
+        $lock_token = self::acquire_sync_lock(60);
+        if ($lock_token === null) {
             return 0;
         }
-        set_transient($lock_key, time(), 60);
 
         try {
             // 1. Prune expired temporary edge bans (with acknowledgement check)
@@ -517,7 +572,7 @@ class CloudflareIpListSynchronizer {
 
             return $synced_count;
         } finally {
-            delete_transient($lock_key);
+            self::release_sync_lock($lock_token);
         }
     }
 
@@ -580,7 +635,7 @@ class CloudflareIpListSynchronizer {
             foreach ($post_res['result'] as $created) {
                 $c_ip = (string) ($created['ip'] ?? '');
                 $c_id = (string) ($created['id'] ?? '');
-                if (!empty($c_ip)) {
+                if (!empty($c_ip) && !empty($c_id)) {
                     $active_bans[$c_ip] = [
                         'target'     => $c_ip,
                         'mode'       => 'account',
@@ -594,17 +649,31 @@ class CloudflareIpListSynchronizer {
         }
 
         if (empty($synced_targets)) {
-            foreach ($targets as $t) {
-                $tip = $t['target'];
-                $active_bans[$tip] = [
-                    'target'     => $tip,
-                    'mode'       => 'account',
-                    'item_id'    => '',
-                    'expires_at' => (int) ($source_entries[$tip]['expires_at'] ?? (time() + 86400)),
-                    'synced_at'  => time(),
-                ];
-                $synced_targets[] = $tip;
+            // Attempt to resolve item IDs from list items directly (Finding 2.4)
+            $list_items_res = CloudflareService::request("accounts/{$account_id}/rules/lists/{$list_id}/items?per_page=100");
+            if (!empty($list_items_res['success']) && !empty($list_items_res['result']) && is_array($list_items_res['result'])) {
+                $target_map = array_fill_keys(array_column($targets, 'target'), true);
+                foreach ($list_items_res['result'] as $l_item) {
+                    $l_ip = (string) ($l_item['ip'] ?? '');
+                    $l_id = (string) ($l_item['id'] ?? '');
+                    if (!empty($l_ip) && !empty($l_id) && isset($target_map[$l_ip])) {
+                        $active_bans[$l_ip] = [
+                            'target'     => $l_ip,
+                            'mode'       => 'account',
+                            'item_id'    => $l_id,
+                            'expires_at' => (int) ($source_entries[$l_ip]['expires_at'] ?? (time() + 86400)),
+                            'synced_at'  => time(),
+                        ];
+                        $synced_targets[] = $l_ip;
+                    }
+                }
             }
+        }
+
+        // If items STILL cannot be confirmed with valid item_id, fail closed and downgrade to zone access rules
+        if (empty($synced_targets)) {
+            set_transient(self::OPTION_TOKEN_SCOPE, 'zone', 6 * 3600);
+            return $this->sync_via_zone_access_rules($targets, $source_entries);
         }
 
         if (count($active_bans) > 2000) {

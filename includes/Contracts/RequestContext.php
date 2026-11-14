@@ -105,12 +105,12 @@ class RequestContext {
         $ctx->referer      = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
         $ctx->cookieHeader = isset($_SERVER['HTTP_COOKIE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_COOKIE'])) : '';
         $remote_peer     = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
-        $trusted_proxy   = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
-            && \WebCareProScanner\Firewall\FirewallEngine::is_trusted_proxy($remote_peer);
-        $ctx->country    = $trusted_proxy && isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY']))) : '';
-        $raw_asn         = $trusted_proxy && isset($_SERVER['HTTP_CF_IPASN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPASN'])) : '';
+        $is_cf_peer      = class_exists('\\WebCareProScanner\\Firewall\\FirewallEngine')
+            && \WebCareProScanner\Firewall\FirewallEngine::is_cloudflare_ip($remote_peer);
+        $ctx->country    = $is_cf_peer && isset($_SERVER['HTTP_CF_IPCOUNTRY']) ? strtoupper(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY']))) : '';
+        $raw_asn         = $is_cf_peer && isset($_SERVER['HTTP_CF_IPASN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPASN'])) : '';
         $ctx->asn        = $raw_asn !== '' ? ltrim(strtoupper($raw_asn), 'AS') : '';
-        $ctx->cf_proxied = $trusted_proxy && !empty($_SERVER['HTTP_CF_RAY']);
+        $ctx->cf_proxied = $is_cf_peer && !empty($_SERVER['HTTP_CF_RAY']);
 
         foreach ($_SERVER as $k => $v) {
             if (is_string($k) && strpos($k, 'HTTP_') === 0 && is_string($v)) {

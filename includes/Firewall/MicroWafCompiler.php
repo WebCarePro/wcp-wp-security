@@ -373,14 +373,6 @@ class MicroWafCompiler {
         $out .= "    return;\n";
         $out .= "}\n\n";
 
-        // Kill-switch 3: emergency administrative header bypass (direct secret match for CLI / curl)
-        $out .= "if (isset(\$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS']) && is_string(\$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS'])) {\n";
-        $out .= "    \$header_token = trim((string) \$_SERVER['HTTP_X_WEBCARE_WAF_BYPASS']);\n";
-        $out .= "    if (hash_equals('{$bypass_escaped}', \$header_token)) {\n";
-        $out .= "        return;\n";
-        $out .= "    }\n";
-        $out .= "}\n\n";
-
         // Micro-WAF Core Engine with Self-Preservation Try/Catch
         $out .= "try {\n";
         $out .= "    (function() {\n";
@@ -588,12 +580,14 @@ class MicroWafCompiler {
         $out .= "        \$mod_clean_uri = strtolower(strtok(\$uri, '?'));\n";
         $out .= "        \$mod_rest_q = isset(\$_GET['rest_route']) && is_string(\$_GET['rest_route']) ? strtolower(trim((string) \$_GET['rest_route'])) : '';\n";
         $out .= "        \$mod_req_method = isset(\$_SERVER['REQUEST_METHOD']) ? strtoupper((string) \$_SERVER['REQUEST_METHOD']) : 'GET';\n";
+        $out .= "        \$url_whitelisted = false;\n";
         $out .= "        if (!empty(\$whitelisted_urls)) {\n";
         $out .= "            \$wl_req_path = strtolower((string) (@parse_url(\$uri, PHP_URL_PATH) ?: \$mod_clean_uri));\n";
         $out .= "            foreach (\$whitelisted_urls as \$wl_u) {\n";
         $out .= "                \$wl_trim = rtrim(\$wl_u, '/');\n";
         $out .= "                if (strtolower(\$uri) === \$wl_u || \$wl_req_path === \$wl_u || (\$wl_trim !== '' && (\$wl_req_path === \$wl_trim || strpos(\$wl_req_path, \$wl_trim . '/') === 0))) {\n";
-        $out .= "                    return;\n";
+        $out .= "                    \$url_whitelisted = true;\n";
+        $out .= "                    break;\n";
         $out .= "                }\n";
         $out .= "            }\n";
         $out .= "        }\n\n";
@@ -629,8 +623,8 @@ class MicroWafCompiler {
         $out .= "            \$vis_ua    = (string) (\$_SERVER['HTTP_USER_AGENT'] ?? '');\n";
         $out .= "            \$vis_ref   = (string) (\$_SERVER['HTTP_REFERER'] ?? '');\n";
         $out .= "            \$vis_ck    = (string) (\$_SERVER['HTTP_COOKIE'] ?? '');\n";
-        $out .= "            \$vis_cc    = (\$is_cf_ip || \$is_custom_proxy) ? strtoupper((string) (\$_SERVER['HTTP_CF_IPCOUNTRY'] ?? '')) : '';\n";
-        $out .= "            \$vis_asn   = (\$is_cf_ip || \$is_custom_proxy) ? ltrim(strtoupper((string) (\$_SERVER['HTTP_CF_IPASN'] ?? '')), 'AS') : '';\n";
+        $out .= "            \$vis_cc    = \$is_cf_ip ? strtoupper((string) (\$_SERVER['HTTP_CF_IPCOUNTRY'] ?? '')) : '';\n";
+        $out .= "            \$vis_asn   = \$is_cf_ip ? ltrim(strtoupper((string) (\$_SERVER['HTTP_CF_IPASN'] ?? '')), 'AS') : '';\n";
         $out .= "            \$vis_exts  = [];\n";
         $out .= "            if (!empty(\$_FILES) && is_array(\$_FILES)) {\n";
         $out .= "                foreach (\$_FILES as \$vf) {\n";

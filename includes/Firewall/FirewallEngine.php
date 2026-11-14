@@ -194,8 +194,8 @@ class FirewallEngine {
 
         $resolved_ip = '';
 
-        // Priority 1: Cloudflare CF-Connecting-IP (if connecting via Cloudflare proxy)
-        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        // Priority 1: Cloudflare CF-Connecting-IP (ONLY if connecting peer is a verified Cloudflare proxy IP - Finding 1.5)
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && self::is_cloudflare_ip($remote_addr)) {
             $cf_ip = trim(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP'])));
             if (stripos($cf_ip, '::ffff:') === 0) {
                 $mapped_cf = substr($cf_ip, 7);
