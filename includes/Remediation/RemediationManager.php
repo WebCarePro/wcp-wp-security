@@ -1012,52 +1012,9 @@ class RemediationManager {
 
         $guard = "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
 
-        if ($file_size > 20971520) {
-            // Stream large file backup (>20MB) to prevent OOM
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-            $src_fp = @fopen($file_path, 'rb');
-            if (!$src_fp) {
-                return ['success' => false];
-            }
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-            $dst_fp = @fopen($dest_path, 'wb');
-            if (!$dst_fp) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-                fclose($src_fp);
-                return ['success' => false];
-            }
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-            $hdr_written  = fwrite($dst_fp, $guard);
-            $copied_bytes = stream_copy_to_stream($src_fp, $dst_fp);
-            fflush($dst_fp);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($src_fp);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($dst_fp);
-
-            if ($hdr_written !== strlen($guard) || $copied_bytes === false || (int) $copied_bytes !== $file_size) {
-                wp_delete_file($dest_path);
-                return ['success' => false];
-            }
-        } else {
-            $content = @file_get_contents($file_path);
-            if ($content === false) {
-                return ['success' => false];
-            }
-
-            try {
-                $encrypted = \WebCareProScanner\Security\SecretVault::encrypt($content);
-            } catch (\Throwable $e) {
-                return ['success' => false];
-            }
-
-            $payload = $guard . $encrypted;
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-            $written = @file_put_contents($dest_path, $payload, LOCK_EX);
-            if ($written === false || $written !== strlen($payload)) {
-                wp_delete_file($dest_path);
-                return ['success' => false];
-            }
+        $vault_res = \WebCareProScanner\Security\SecretVault::encrypt_file_to_vault($file_path, $dest_path);
+        if (empty($vault_res['success'])) {
+            return ['success' => false, 'error' => $vault_res['error'] ?? 'Backup encryption failed'];
         }
 
         global $wp_filesystem;
@@ -1135,41 +1092,48 @@ class RemediationManager {
             return ['success' => false, 'message' => 'Physical backup file is missing from storage.'];
         }
 
-        $raw = @file_get_contents($backup_path);
-        if ($raw === false) {
-            return ['success' => false, 'message' => 'Could not read backup file from storage.'];
-        }
-
-        $payload = $raw;
-        $halt_marker = '__halt_compiler(); ?>';
-        $pos = strpos($raw, $halt_marker);
-        if ($pos !== false) {
-            $payload = ltrim(substr($raw, $pos + strlen($halt_marker)), "\r\n");
-        }
-
-        if (\WebCareProScanner\Security\SecretVault::is_encrypted($payload)) {
-            $decrypted = \WebCareProScanner\Security\SecretVault::decrypt($payload);
-            if ($decrypted === false) {
-                return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted backup ciphertext.'];
-            }
-            $clean_data = $decrypted;
-        } else {
-            $clean_data = $payload;
-        }
-
-        // Cryptographic integrity verification: ensure decrypted data matches pre-modification SHA-256
-        if (!empty($record['sha256']) && hash('sha256', $clean_data) !== $record['sha256']) {
-            return ['success' => false, 'message' => 'Integrity verification failed: Restored backup content does not match original pre-remediation SHA-256 hash.'];
-        }
-
         // Security boundary check: Ensure original rollback target strictly resides inside ABSPATH and is safe to write
         if (!\WebCareProScanner\Filesystem\PathValidator::is_safe_write_target($original_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security restriction: Rollback destination resides outside WordPress root directory.'];
         }
 
-        // Atomically restore backup to original path, preventing symlink follower races
-        if (!\WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($original_path, $clean_data, ABSPATH)) {
-            return ['success' => false, 'message' => 'Could not restore backup to original path. Check write permissions.'];
+        $temp_dest = $original_path . '.webcare_rst_tmp_' . bin2hex(random_bytes(6));
+        $dec_res   = \WebCareProScanner\Security\SecretVault::decrypt_vault_to_file($backup_path, $temp_dest, null, true);
+        if (empty($dec_res['success'])) {
+            if (file_exists($temp_dest)) {
+                wp_delete_file($temp_dest);
+            }
+            return ['success' => false, 'message' => 'Cryptographic decryption failed: ' . ($dec_res['error'] ?? 'Invalid vault key or corrupted backup ciphertext.')];
+        }
+
+        // Cryptographic integrity verification: ensure decrypted data matches pre-modification SHA-256
+        if (!empty($record['sha256'])) {
+            $restored_hash = @hash_file('sha256', $temp_dest);
+            if (!hash_equals((string) $record['sha256'], (string) $restored_hash)) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'message' => 'Integrity verification failed: Restored backup content does not match original pre-remediation SHA-256 hash.'];
+            }
+        }
+
+        // Atomically move restored backup to original path
+        if (!@rename($temp_dest, $original_path)) {
+            if (!@copy($temp_dest, $original_path)) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'message' => 'Could not restore backup to original path. Check write permissions.'];
+            }
+            wp_delete_file($temp_dest);
+        }
+
+        global $wp_filesystem;
+        if (empty($wp_filesystem)) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+        }
+        if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
+            $wp_filesystem->chmod($original_path, 0644);
+        } else {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            @chmod($original_path, 0644);
         }
 
         if (class_exists('\\WebCareProScanner\\Notifications\\NotificationDispatcher')) {

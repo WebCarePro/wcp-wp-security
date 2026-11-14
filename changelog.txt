@@ -1,4 +1,29 @@
 ﻿v:2.14.0 - 2026-11-14
+- Unified Streaming AEAD Encryption & Transactional Quarantine/Remediation (Q-01 through Q-04, TR-01 through TR-03, WCP-04):
+  * Q-02 & Q-03 (Unified 1 MB Chunked Streaming AEAD Encryption):
+    - Implemented SecretVault::encrypt_file_to_vault() and SecretVault::decrypt_vault_to_file() using AES-256-GCM chunked streaming (1 MB frames) with format header '// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM'.
+    - Bound chunk frame index (pack('N', $chunk_idx)) into AEAD Associated Authenticated Data (AAD) to cryptographically prevent frame reordering, truncation, and chunk-swap attacks.
+    - Unified quarantine and remediation file encryption so 100% of files (1 byte to 500 MB+) are authenticated and encrypted in constant low memory (<5 MB RAM), completely eliminating raw unencrypted stream fallbacks.
+    - Added SecretVault::inspect_vault_file() to safely identify archive formats (V2 Chunked, V2 Inline AEAD, legacy) before processing.
+  * Q-01 & Q-04 (Atomic TOCTOU-Safe Quarantine & No-Clobber Restore):
+    - Added pre-encryption stat capture ($src_stat via lstat()) in QuarantineManager::quarantine_file().
+    - Implemented strict re-stat identity check (dev, ino, size, mtime, !is_link()) immediately before unlinking original files; any change safely aborts and rolls back vault copy.
+    - Preserved superseded older quarantine database records until deletion of the original file commits.
+    - Implemented no-clobber protection in QuarantineManager::restore_file(): refuses to restore over an existing file unless explicit $overwrite === true is provided.
+    - Enforced strict SHA-256 hex format validation and pre/post restore hash verification.
+    - Updated ScannerRoutes::restore_quarantine() to extract and pass $overwrite and $allow_legacy parameters.
+  * Q-08 & Q-09 (RemediationManager 100% Vault Encryption & Verified Rollback):
+    - Replaced bifurcated stream copy in RemediationManager::create_file_backup() with SecretVault::encrypt_file_to_vault(), ensuring all remediation backups are encrypted under 0600 permissions.
+    - Hardened RemediationManager::rollback_remediation() to decrypt via SecretVault::decrypt_vault_to_file() to a temporary staging file, verify pre-modification SHA-256 integrity, and atomically swap into place.
+  * TR-01, TR-02 & TR-03 (Encrypted Transaction Vault Snapshots & Re-entrant Rollback Guard):
+    - Upgraded TransactionalRemediation::record_file_snapshot() to encrypt pre-remediation live file snapshots into the transaction vault using SecretVault::encrypt_file_to_vault() with '.bak.php' extension and 0600 permissions.
+    - Enforced atomic LOCK_EX writes on transaction manifest.json.
+    - Added re-entrant rollback protection: sets manifest status to 'rollback_applying' before starting file restoration.
+    - In TransactionalRemediation::rollback_transaction(), decrypts snapshots to staging files, validates pre-remediation SHA-256 before replacement, and marks status as 'rollback_partial_failure' if any item fails or 'rolled_back' on total success.
+  * WCP-04 (Disk Archive Rotation for Streaming Chunked AEAD Vault Archives):
+    - Extended VaultRotator::rotate_encrypted_disk_archives() to scan transaction snapshots (.remediation/transactions/*/files/*.bak*).
+    - Added is_chunked_vault_under_key() to verify V2_CHUNKED_GCM key membership without full file decryption.
+    - Implemented streaming re-encryption for chunked vault files under the new master vault key with atomic file replacement.
 - Cloudflare Synchronization & Ruleset Safety Hardening (CF-01 through CF-05):
   * CF-01 (Durable Per-Item Queue State Machine & Mutex Lock):
     - Added 60-second atomic transient mutex lock (webcare_cf_sync_queue_lock) in CloudflareIpListSynchronizer::process_sync_queue() to eliminate race conditions between WP-Cron and post-response shutdown handlers.

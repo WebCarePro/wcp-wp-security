@@ -10,6 +10,11 @@ class SecretVault {
     const CIPHER_GCM = 'aes-256-gcm';
     const PREFIX_GCM = 'webcare_gcm:';
 
+    public const VAULT_FORMAT_CHUNKED = 'V2_CHUNKED_GCM';
+    public const VAULT_FORMAT_INLINE  = 'V2_INLINE_AEAD';
+    public const CHUNK_SIZE           = 1048576; // 1 MB (1,048,576 bytes) chunking for constant memory
+    public const GUARD_HEADER         = "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
+
     /**
      * Derive a cryptographically uniform 256-bit (32-byte) key.
      * Priority:
@@ -310,5 +315,441 @@ class SecretVault {
      */
     public static function is_encrypted(string $value): bool {
         return strpos($value, self::PREFIX_GCM) === 0;
+    }
+
+    /**
+     * Encrypt any file of arbitrary size (1 byte to 500 MB+) into an authenticated WebCare Vault archive.
+     * Uses 1 MB chunked streaming AES-256-GCM AEAD encryption with chunk-index binding (Q-02, Q-03).
+     *
+     * @param string $src_path Source file path
+     * @param string $dest_path Target encrypted vault path
+     * @param string|null $binary_key Optional explicit key; uses self::get_key() if omitted
+     * @return array ['success' => bool, 'error' => string, 'sha256' => string, 'bytes' => int, 'chunks' => int]
+     */
+    public static function encrypt_file_to_vault(string $src_path, string $dest_path, ?string $binary_key = null): array {
+        if (!file_exists($src_path) || !is_file($src_path)) {
+            return ['success' => false, 'error' => 'Source file does not exist or is not a regular file.'];
+        }
+
+        if (!function_exists('openssl_encrypt')) {
+            return ['success' => false, 'error' => 'OpenSSL extension is missing. Encrypted vault operations are disabled.'];
+        }
+
+        $key = $binary_key;
+        if ($key === null) {
+            try {
+                $key = self::get_key();
+            } catch (\Throwable $e) {
+                return ['success' => false, 'error' => 'Vault key derivation failed: ' . $e->getMessage()];
+            }
+        }
+        $raw_key = strlen($key) === 64 && ctype_xdigit($key)
+            ? (string) hex2bin($key)
+            : (strlen($key) === 32 ? $key : hash('sha256', $key, true));
+
+        $file_size = (int) @filesize($src_path);
+        $orig_sha256 = @hash_file('sha256', $src_path) ?: '';
+
+        // Ensure parent directory exists
+        $dest_dir = dirname($dest_path);
+        if (!is_dir($dest_dir)) {
+            wp_mkdir_p($dest_dir);
+        }
+
+        $temp_dest = $dest_path . '.webcare_tmp_' . bin2hex(random_bytes(6));
+        $src_fp = @fopen($src_path, 'rb');
+        if (!$src_fp) {
+            return ['success' => false, 'error' => 'Failed to open source file for reading.'];
+        }
+
+        $dst_fp = @fopen($temp_dest, 'wb');
+        if (!$dst_fp) {
+            fclose($src_fp);
+            return ['success' => false, 'error' => 'Failed to open temporary vault destination for writing.'];
+        }
+
+        $chunk_size = self::CHUNK_SIZE;
+        $total_chunks = (int) ceil(max(1, $file_size) / $chunk_size);
+
+        $meta = [
+            'format'      => self::VAULT_FORMAT_CHUNKED,
+            'chunks'      => $total_chunks,
+            'file_size'   => $file_size,
+            'orig_sha256' => $orig_sha256,
+            'chunk_size'  => $chunk_size,
+            'created_at'  => time(),
+        ];
+
+        $header_line = "// WEBCARE_VAULT_FORMAT:" . self::VAULT_FORMAT_CHUNKED . ":" . wp_json_encode($meta) . "\n";
+        $written_hdr = fwrite($dst_fp, self::GUARD_HEADER . $header_line);
+        if ($written_hdr === false) {
+            fclose($src_fp);
+            fclose($dst_fp);
+            wp_delete_file($temp_dest);
+            return ['success' => false, 'error' => 'Failed to write vault guard header.'];
+        }
+
+        $chunk_idx = 0;
+        while (!feof($src_fp)) {
+            $chunk = fread($src_fp, $chunk_size);
+            if ($chunk === false) {
+                break;
+            }
+            if ($chunk === '' && $chunk_idx > 0) {
+                break;
+            }
+
+            $iv = random_bytes(12);
+            $tag = '';
+            $aad = pack('N', $chunk_idx);
+            $ciphertext = openssl_encrypt($chunk, self::CIPHER_GCM, $raw_key, OPENSSL_RAW_DATA, $iv, $tag, $aad, 16);
+            if ($ciphertext === false || strlen($tag) !== 16) {
+                fclose($src_fp);
+                fclose($dst_fp);
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => "AEAD chunk encryption failed at chunk index {$chunk_idx}."];
+            }
+
+            $cipher_len = strlen($ciphertext);
+            $frame_hdr = pack('N', $cipher_len) . $iv . $tag;
+            $frame_bytes = fwrite($dst_fp, $frame_hdr . $ciphertext);
+            if ($frame_bytes !== (32 + $cipher_len)) {
+                fclose($src_fp);
+                fclose($dst_fp);
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => "Failed to write complete ciphertext frame for chunk {$chunk_idx}."];
+            }
+
+            $chunk_idx++;
+            if ($file_size === 0) {
+                break;
+            }
+        }
+
+        fclose($src_fp);
+        fflush($dst_fp);
+        fclose($dst_fp);
+
+        if (!@rename($temp_dest, $dest_path)) {
+            wp_delete_file($temp_dest);
+            return ['success' => false, 'error' => 'Failed to atomically finalize encrypted vault file.'];
+        }
+
+        @chmod($dest_path, 0600);
+
+        return [
+            'success'     => true,
+            'vault_path'  => $dest_path,
+            'file_size'   => $file_size,
+            'vault_size'  => (int) @filesize($dest_path),
+            'orig_sha256' => $orig_sha256,
+            'chunks'      => $chunk_idx,
+            'format'      => self::VAULT_FORMAT_CHUNKED,
+        ];
+    }
+
+    /**
+     * Decrypt an authenticated WebCare Vault archive back to its original plaintext file.
+     * Supports V2 Chunked Streaming AEAD, V2 Inline AEAD, and verified fallback (Q-02, Q-03).
+     *
+     * @param string $vault_path Encrypted vault archive path
+     * @param string $dest_path Destination plaintext restore path
+     * @param string|null $binary_key Optional explicit key; uses self::get_key() if omitted
+     * @param bool $allow_legacy_unverified Whether to allow legacy unencrypted archives
+     * @return array ['success' => bool, 'error' => string, 'dest_path' => string, 'sha256' => string, 'bytes' => int]
+     */
+    public static function decrypt_vault_to_file(
+        string $vault_path,
+        string $dest_path,
+        ?string $binary_key = null,
+        bool $allow_legacy_unverified = false
+    ): array {
+        if (!file_exists($vault_path) || !is_file($vault_path)) {
+            return ['success' => false, 'error' => 'Vault file does not exist or is unreadable.'];
+        }
+
+        $key = $binary_key;
+        if ($key === null) {
+            try {
+                $key = self::get_key();
+            } catch (\Throwable $e) {
+                return ['success' => false, 'error' => 'Vault key derivation failed: ' . $e->getMessage()];
+            }
+        }
+        $raw_key = strlen($key) === 64 && ctype_xdigit($key)
+            ? (string) hex2bin($key)
+            : (strlen($key) === 32 ? $key : hash('sha256', $key, true));
+
+        $v_fp = @fopen($vault_path, 'rb');
+        if (!$v_fp) {
+            return ['success' => false, 'error' => 'Failed to open vault file for reading.'];
+        }
+
+        // Seek past PHP guard header
+        $header_buffer = fread($v_fp, 4096);
+        $halt_marker = '__halt_compiler(); ' . '?>';
+        $halt_pos = strpos($header_buffer, $halt_marker);
+
+        $payload_offset = 0;
+        if ($halt_pos !== false) {
+            $payload_offset = $halt_pos + strlen($halt_marker);
+            while ($payload_offset < strlen($header_buffer) && ($header_buffer[$payload_offset] === "\r" || $header_buffer[$payload_offset] === "\n")) {
+                $payload_offset++;
+            }
+        }
+        fseek($v_fp, $payload_offset, SEEK_SET);
+
+        // Read format line
+        $format_line = fgets($v_fp, 4096);
+        $format = 'UNKNOWN';
+        $meta = [];
+
+        if (is_string($format_line) && str_starts_with($format_line, '// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')) {
+            $format = self::VAULT_FORMAT_CHUNKED;
+            $json_str = trim(substr($format_line, strlen('// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')));
+            $meta = json_decode($json_str, true) ?: [];
+        } elseif (is_string($format_line) && str_starts_with($format_line, '// WEBCARE_VAULT_FORMAT:V2_INLINE_AEAD')) {
+            $format = self::VAULT_FORMAT_INLINE;
+        } else {
+            fseek($v_fp, $payload_offset, SEEK_SET);
+            $peek = fread($v_fp, 20);
+            if (str_starts_with($peek, self::PREFIX_GCM)) {
+                $format = self::VAULT_FORMAT_INLINE;
+            } else {
+                $format = 'LEGACY_PLAINTEXT';
+            }
+            fseek($v_fp, $payload_offset, SEEK_SET);
+        }
+
+        $dest_dir = dirname($dest_path);
+        if (!is_dir($dest_dir)) {
+            wp_mkdir_p($dest_dir);
+        }
+        $temp_dest = $dest_path . '.webcare_rst_tmp_' . bin2hex(random_bytes(6));
+
+        if ($format === self::VAULT_FORMAT_CHUNKED) {
+            $total_chunks = (int) ($meta['chunks'] ?? 0);
+            $expected_sha = (string) ($meta['orig_sha256'] ?? '');
+
+            $dst_fp = @fopen($temp_dest, 'wb');
+            if (!$dst_fp) {
+                fclose($v_fp);
+                return ['success' => false, 'error' => 'Failed to create destination stream.'];
+            }
+
+            for ($chunk_idx = 0; $chunk_idx < $total_chunks; $chunk_idx++) {
+                $len_buf = fread($v_fp, 4);
+                if ($len_buf === false || strlen($len_buf) < 4) {
+                    fclose($v_fp);
+                    fclose($dst_fp);
+                    wp_delete_file($temp_dest);
+                    return ['success' => false, 'error' => "Vault truncated: missing chunk frame {$chunk_idx} header."];
+                }
+
+                $cipher_len = unpack('N', $len_buf)[1];
+                $iv = fread($v_fp, 12);
+                $tag = fread($v_fp, 16);
+                if (strlen($iv) !== 12 || strlen($tag) !== 16) {
+                    fclose($v_fp);
+                    fclose($dst_fp);
+                    wp_delete_file($temp_dest);
+                    return ['success' => false, 'error' => "Vault truncated: invalid IV/Tag in chunk {$chunk_idx}."];
+                }
+
+                $ciphertext = ($cipher_len > 0) ? fread($v_fp, $cipher_len) : '';
+                if (strlen($ciphertext) !== $cipher_len) {
+                    fclose($v_fp);
+                    fclose($dst_fp);
+                    wp_delete_file($temp_dest);
+                    return ['success' => false, 'error' => "Vault truncated: incomplete ciphertext in chunk {$chunk_idx}."];
+                }
+
+                $aad = pack('N', $chunk_idx);
+                $plain = openssl_decrypt($ciphertext, self::CIPHER_GCM, $raw_key, OPENSSL_RAW_DATA, $iv, $tag, $aad);
+                if ($plain === false) {
+                    // Decryption failed with primary key: attempt with transitional old key if rotation active
+                    $fallback_ok = false;
+                    if (class_exists('\\WebCareProScanner\\Security\\VaultRotator')) {
+                        $transitional_key = \WebCareProScanner\Security\VaultRotator::get_transitional_old_key_if_active();
+                        if ($transitional_key && $transitional_key !== $raw_key) {
+                            $plain = openssl_decrypt($ciphertext, self::CIPHER_GCM, $transitional_key, OPENSSL_RAW_DATA, $iv, $tag, $aad);
+                            if ($plain !== false) {
+                                $fallback_ok = true;
+                            }
+                        }
+                    }
+
+                    if (!$fallback_ok && $plain === false) {
+                        fclose($v_fp);
+                        fclose($dst_fp);
+                        wp_delete_file($temp_dest);
+                        return ['success' => false, 'error' => "Cryptographic authentication failed on chunk {$chunk_idx}."];
+                    }
+                }
+
+                if ($plain !== '') {
+                    fwrite($dst_fp, $plain);
+                }
+            }
+
+            fclose($v_fp);
+            fflush($dst_fp);
+            fclose($dst_fp);
+
+            if ($expected_sha !== '') {
+                $actual_sha = @hash_file('sha256', $temp_dest);
+                if (!hash_equals($expected_sha, (string) $actual_sha)) {
+                    wp_delete_file($temp_dest);
+                    return ['success' => false, 'error' => 'Integrity verification failed: Decrypted file SHA-256 does not match vault manifest.'];
+                }
+            }
+
+            if (!@rename($temp_dest, $dest_path)) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => 'Failed to atomically move restored file into destination path.'];
+            }
+
+            return [
+                'success'   => true,
+                'dest_path' => $dest_path,
+                'sha256'    => $expected_sha ?: @hash_file('sha256', $dest_path),
+                'bytes'     => (int) @filesize($dest_path),
+                'format'    => self::VAULT_FORMAT_CHUNKED,
+            ];
+        }
+
+        if ($format === self::VAULT_FORMAT_INLINE) {
+            $payload = stream_get_contents($v_fp);
+            fclose($v_fp);
+
+            $payload = trim((string) $payload);
+            $decrypted = self::decrypt_with_key($payload, $raw_key);
+            if ($decrypted === false) {
+                if (class_exists('\\WebCareProScanner\\Security\\VaultRotator')) {
+                    $transitional_key = \WebCareProScanner\Security\VaultRotator::get_transitional_old_key_if_active();
+                    if ($transitional_key && $transitional_key !== $raw_key) {
+                        $decrypted = self::decrypt_with_key($payload, $transitional_key);
+                    }
+                }
+            }
+
+            if ($decrypted === false) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => 'Inline AEAD decryption failed: Invalid key or corrupted payload.'];
+            }
+
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+            file_put_contents($temp_dest, $decrypted, LOCK_EX);
+            if (!@rename($temp_dest, $dest_path)) {
+                wp_delete_file($temp_dest);
+                return ['success' => false, 'error' => 'Failed to move restored file into place.'];
+            }
+
+            return [
+                'success'   => true,
+                'dest_path' => $dest_path,
+                'sha256'    => hash_file('sha256', $dest_path),
+                'bytes'     => (int) @filesize($dest_path),
+                'format'    => self::VAULT_FORMAT_INLINE,
+            ];
+        }
+
+        // LEGACY_PLAINTEXT: Reject unless explicitly authorized
+        if (!$allow_legacy_unverified) {
+            fclose($v_fp);
+            wp_delete_file($temp_dest);
+            return [
+                'success' => false,
+                'error'   => 'Security Policy Violation: Unencrypted legacy vault archives are prohibited without explicit admin authorization.',
+            ];
+        }
+
+        $dst_fp = @fopen($temp_dest, 'wb');
+        if (!$dst_fp) {
+            fclose($v_fp);
+            return ['success' => false, 'error' => 'Failed to create destination stream for legacy restore.'];
+        }
+        stream_copy_to_stream($v_fp, $dst_fp);
+        fclose($v_fp);
+        fflush($dst_fp);
+        fclose($dst_fp);
+
+        if (!@rename($temp_dest, $dest_path)) {
+            wp_delete_file($temp_dest);
+            return ['success' => false, 'error' => 'Failed to move legacy restored file into place.'];
+        }
+
+        return [
+            'success'   => true,
+            'dest_path' => $dest_path,
+            'sha256'    => hash_file('sha256', $dest_path),
+            'bytes'     => (int) @filesize($dest_path),
+            'format'    => 'LEGACY_PLAINTEXT',
+        ];
+    }
+
+    /**
+     * Inspect a vault file format and cryptographic envelope.
+     *
+     * @param string $vault_path
+     * @return array
+     */
+    public static function inspect_vault_file(string $vault_path): array {
+        if (!file_exists($vault_path) || !is_file($vault_path)) {
+            return ['valid' => false, 'error' => 'File does not exist.'];
+        }
+
+        $fp = @fopen($vault_path, 'rb');
+        if (!$fp) {
+            return ['valid' => false, 'error' => 'File unreadable.'];
+        }
+
+        $header_buffer = fread($fp, 4096);
+        $halt_marker = '__halt_compiler(); ' . '?>';
+        $halt_pos = strpos($header_buffer, $halt_marker);
+        if ($halt_pos === false) {
+            fclose($fp);
+            return ['valid' => false, 'error' => 'Missing PHP guard header.'];
+        }
+
+        $offset = $halt_pos + strlen($halt_marker);
+        while ($offset < strlen($header_buffer) && ($header_buffer[$offset] === "\r" || $header_buffer[$offset] === "\n")) {
+            $offset++;
+        }
+        fseek($fp, $offset, SEEK_SET);
+
+        $line = fgets($fp, 4096);
+        fclose($fp);
+
+        if (is_string($line) && str_starts_with($line, '// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')) {
+            $meta = json_decode(substr(trim($line), strlen('// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')), true) ?: [];
+            return [
+                'valid'       => true,
+                'format'      => self::VAULT_FORMAT_CHUNKED,
+                'chunks'      => (int) ($meta['chunks'] ?? 0),
+                'orig_sha256' => (string) ($meta['orig_sha256'] ?? ''),
+                'file_size'   => (int) ($meta['file_size'] ?? 0),
+                'meta'        => $meta,
+            ];
+        }
+
+        if (is_string($line) && str_starts_with($line, '// WEBCARE_VAULT_FORMAT:V2_INLINE_AEAD')) {
+            return [
+                'valid'  => true,
+                'format' => self::VAULT_FORMAT_INLINE,
+            ];
+        }
+
+        if (is_string($line) && str_starts_with(trim($line), self::PREFIX_GCM)) {
+            return [
+                'valid'  => true,
+                'format' => self::VAULT_FORMAT_INLINE,
+            ];
+        }
+
+        return [
+            'valid'  => true,
+            'format' => 'LEGACY_PLAINTEXT',
+        ];
     }
 }

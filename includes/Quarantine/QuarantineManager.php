@@ -132,74 +132,27 @@ class QuarantineManager {
             ];
         }
 
-        $file_size = (int) @filesize($real_path);
+        $src_stat = @lstat($real_path);
+        if (!$src_stat || !is_array($src_stat)) {
+            return ['success' => false, 'message' => 'Failed to obtain filesystem stat for target file.'];
+        }
+
+        $file_size = (int) ($src_stat['size'] ?? @filesize($real_path));
         $file_perms = substr(sprintf('%o', fileperms($real_path)), -4);
         $sha256 = hash_file('sha256', $real_path) ?: '';
 
         // Generate quarantined file destination with .quarantine.php extension
         $safe_filename = bin2hex(random_bytes(16)) . '_' . time() . '.quarantine.php';
         $dest_path = $this->quarantine_dir . '/' . $safe_filename;
-        $guard_header = "<?php http_response_code(403); exit('WebCare Pro Security: Direct access forbidden.'); __halt_compiler(); ?>\n";
 
-        $temp_dest = $dest_path . '.webcare_tmp_' . bin2hex(random_bytes(6));
-
-        // For large files (>20MB), stream directly with guard header to prevent PHP memory exhaustion (OOM)
-        if ($file_size > 20971520) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-            $src_fp = @fopen($real_path, 'rb');
-            if (!$src_fp) {
-                return ['success' => false, 'message' => 'Failed to open source file stream for quarantine.'];
-            }
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-            $dst_fp = @fopen($temp_dest, 'wb');
-            if (!$dst_fp) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-                fclose($src_fp);
-                return ['success' => false, 'message' => 'Failed to write large file to quarantine storage. Permission denied.'];
-            }
-
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Stream write required for chunked processing of large files (>20MB)
-            $header_bytes = fwrite($dst_fp, $guard_header);
-            $copied_bytes = stream_copy_to_stream($src_fp, $dst_fp);
-            fflush($dst_fp);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($src_fp);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($dst_fp);
-
-            if ($header_bytes !== strlen($guard_header) || $copied_bytes === false || (int) $copied_bytes !== $file_size) {
-                wp_delete_file($temp_dest);
-                return ['success' => false, 'message' => 'Quarantine stream verification failed: byte count mismatch during vault write.'];
-            }
-        } else {
-            // Read file contents before isolation
-            $file_content = @file_get_contents($real_path);
-            if ($file_content === false) {
-                return ['success' => false, 'message' => 'Failed to read source file for quarantine. Permission denied.'];
-            }
-
-            // Encrypt file contents using SecretVault (AES-256-GCM authenticated AEAD encryption)
-            try {
-                $encrypted_payload = \WebCareProScanner\Security\SecretVault::encrypt($file_content);
-            } catch (\Throwable $e) {
-                return ['success' => false, 'message' => 'Encryption failed during quarantine: ' . $e->getMessage()];
-            }
-
-            $vault_payload = $guard_header . $encrypted_payload;
-
-            // Write encrypted payload to temporary protected vault file
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-            $written = @file_put_contents($temp_dest, $vault_payload, LOCK_EX);
-            if ($written === false || $written !== strlen($vault_payload)) {
-                wp_delete_file($temp_dest);
-                return ['success' => false, 'message' => 'Failed to write file to encrypted vault storage. Permission denied.'];
-            }
-        }
-
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic filesystem rename from temp file to final destination
-        if (!@rename($temp_dest, $dest_path)) {
-            wp_delete_file($temp_dest);
-            return ['success' => false, 'message' => 'Failed to finalize quarantine file atomically.'];
+        // Unified 1 MB Chunked Streaming AEAD Encryption (Q-02, Q-03):
+        // 100% of files from 1 byte to 500 MB+ are authenticated and encrypted via AES-256-GCM.
+        $vault_res = \WebCareProScanner\Security\SecretVault::encrypt_file_to_vault($real_path, $dest_path);
+        if (empty($vault_res['success'])) {
+            return [
+                'success' => false,
+                'message' => 'Quarantine encryption failed: ' . ($vault_res['error'] ?? 'Unknown vault error'),
+            ];
         }
 
         // Lock down permissions on vault file
@@ -211,36 +164,10 @@ class QuarantineManager {
             @chmod($dest_path, 0600);
         }
 
-        // Record in database - ensure single authoritative record per original_path BEFORE unlinking original file
+        // Record in database BEFORE unlinking original file (WCP-01, Q-01)
+        // We preserve any older quarantine rows until the new file deletion commits!
         $table = $wpdb->prefix . 'webcareproscan_quarantine';
 
-        // Check if previous records exist for this exact file path to avoid duplicates
-        $exist_sql = "SELECT id, quarantine_filename FROM `{$table}` WHERE original_path = %s";
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $existing = $wpdb->get_results(
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-            $wpdb->prepare($exist_sql, $real_path),
-            ARRAY_A
-        );
-
-        if (!empty($existing)) {
-            foreach ($existing as $old_rec) {
-                if (!empty($old_rec['quarantine_filename'])) {
-                    $old_file = $this->quarantine_dir . '/' . $old_rec['quarantine_filename'];
-                    if (file_exists($old_file)) {
-                        wp_delete_file($old_file);
-                    }
-                }
-            }
-            $del_sql = "DELETE FROM `{$table}` WHERE original_path = %s";
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
-            $wpdb->query(
-                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-                $wpdb->prepare($del_sql, $real_path)
-            );
-        }
-
-        // Record in database BEFORE unlinking the original file so a DB error never causes data loss (WCP-01)
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
         $inserted = $wpdb->insert($table, [
             'scan_id'             => $scan_id,
@@ -264,14 +191,26 @@ class QuarantineManager {
             ];
         }
 
-        // TOCTOU Symlink Replacement Check: ensure target has not been replaced with a symlink prior to deletion
-        if (is_link($real_path) || is_link($file_path)) {
+        // TOCTOU Symlink Replacement & Inode Attribute Verification (Q-01):
+        // Re-stat target immediately before deletion and verify dev, ino, size, and mtime remain identical.
+        clearstatcache(true, $real_path);
+        $pre_del_stat = @lstat($real_path);
+
+        if (
+            is_link($real_path) || is_link($file_path)
+            || !$pre_del_stat || !is_array($pre_del_stat)
+            || ($pre_del_stat['dev'] ?? null) !== ($src_stat['dev'] ?? null)
+            || ($pre_del_stat['ino'] ?? null) !== ($src_stat['ino'] ?? null)
+            || ($pre_del_stat['size'] ?? null) !== ($src_stat['size'] ?? null)
+            || ($pre_del_stat['mtime'] ?? null) !== ($src_stat['mtime'] ?? null)
+        ) {
+            // Roll back the new database record and remove newly created vault copy
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $wpdb->delete($table, ['id' => $quarantine_id], ['%d']);
             wp_delete_file($dest_path);
             return [
                 'success' => false,
-                'message' => 'Security violation: Symlink substitution detected during quarantine; operation safely aborted.',
+                'message' => 'Security violation: File attributes or inode changed between encryption and deletion (possible TOCTOU race); operation safely aborted.',
             ];
         }
 
@@ -286,6 +225,32 @@ class QuarantineManager {
                 'success' => false,
                 'message' => 'Failed to remove original file from filesystem; quarantine record rolled back.',
             ];
+        }
+
+        // Now that deletion is 100% committed, prune any superseded older quarantine rows for this path (Q-01)
+        $exist_sql = "SELECT id, quarantine_filename FROM `{$table}` WHERE original_path = %s AND id != %d";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+        $existing = $wpdb->get_results(
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->prepare($exist_sql, $real_path, $quarantine_id),
+            ARRAY_A
+        );
+
+        if (!empty($existing)) {
+            foreach ($existing as $old_rec) {
+                if (!empty($old_rec['quarantine_filename'])) {
+                    $old_file = $this->quarantine_dir . '/' . $old_rec['quarantine_filename'];
+                    if (file_exists($old_file)) {
+                        wp_delete_file($old_file);
+                    }
+                }
+            }
+            $del_sql = "DELETE FROM `{$table}` WHERE original_path = %s AND id != %d";
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            $wpdb->query(
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $wpdb->prepare($del_sql, $real_path, $quarantine_id)
+            );
         }
 
         // Flush bytecode caches ONLY after original file is confirmed deleted
@@ -340,7 +305,16 @@ class QuarantineManager {
      * @param int $quarantine_id
      * @return array ['success' => bool, 'message' => string]
      */
-    public function restore_file($quarantine_id) {
+    /**
+     * Restore a quarantined file back to its original location.
+     * Decrypts authenticated vault ciphertext safely (Q-02, Q-03) and enforces no-clobber guarantees (Q-04).
+     *
+     * @param int $quarantine_id
+     * @param bool $overwrite Whether to overwrite existing destination files
+     * @param bool $allow_legacy_unverified Whether to allow restoring unencrypted legacy files
+     * @return array ['success' => bool, 'message' => string, 'conflict' => bool]
+     */
+    public function restore_file($quarantine_id, bool $overwrite = false, bool $allow_legacy_unverified = false) {
         global $wpdb;
         $table = $wpdb->prefix . 'webcareproscan_quarantine';
 
@@ -377,6 +351,15 @@ class QuarantineManager {
 
         $dest_path = $record['original_path'];
 
+        // Enforce No-Clobber (Q-04): If file already exists at destination and not $overwrite, refuse to overwrite
+        if ((file_exists($dest_path) || is_link($dest_path)) && !$overwrite) {
+            return [
+                'success'  => false,
+                'conflict' => true,
+                'message'  => __('Restore aborted: A file already exists at the destination path.', 'webcare-pro-security'),
+            ];
+        }
+
         // Security check: Destination must reside within ABSPATH boundary and be safe to write
         if (!\WebCareProScanner\Filesystem\PathValidator::is_safe_write_target($dest_path, ABSPATH)) {
             return ['success' => false, 'message' => 'Security violation: Restore destination resides outside ABSPATH.'];
@@ -410,122 +393,48 @@ class QuarantineManager {
         $raw_perms     = $record['file_permissions'] ?? $record['file_perms'] ?? '';
         $perms         = !empty($raw_perms) ? octdec((string) $raw_perms) : 0644;
 
-        $source_size = (int) @filesize($source_path);
-        if ($source_size > 20971520) {
-            // Large file stream restore: avoid loading entire file into memory (OOM prevention)
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-            $src_fp = @fopen($source_path, 'rb');
-            if (!$src_fp) {
-                return ['success' => false, 'message' => 'Failed to open large vault file for restoration.'];
-            }
+        // Hash verification check: Require valid 64-character SHA-256 hex unless legacy unverified is explicitly allowed
+        if (!$allow_legacy_unverified && !preg_match('/^[a-f0-9]{64}$/i', $expected_hash)) {
+            return [
+                'success' => false,
+                'message' => 'Integrity verification failed: Missing or invalid SHA-256 fingerprint in quarantine record.',
+            ];
+        }
 
-            // Seek past guard header
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Stream read required to inspect halt marker on large files (>20MB)
-            $header_buffer = fread($src_fp, 2048);
-            $halt_marker = '__halt_compiler(); ' . '?>';
-            $pos = strpos($header_buffer, $halt_marker);
-            if ($pos !== false) {
-                $payload_offset = $pos + strlen($halt_marker);
-                while ($payload_offset < strlen($header_buffer) && ($header_buffer[$payload_offset] === "\r" || $header_buffer[$payload_offset] === "\n")) {
-                    $payload_offset++;
-                }
-                fseek($src_fp, $payload_offset, SEEK_SET);
-            } else {
-                fseek($src_fp, 0, SEEK_SET);
-            }
+        // Decrypt authenticated vault archive to destination (Q-02, Q-03)
+        $dec_res = \WebCareProScanner\Security\SecretVault::decrypt_vault_to_file(
+            $source_path,
+            $dest_path,
+            null,
+            $allow_legacy_unverified
+        );
 
-            $temp_dest = $dest_path . '.webcare_rst_' . bin2hex(random_bytes(6));
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-            $dst_fp = @fopen($temp_dest, 'wb');
-            if (!$dst_fp) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-                fclose($src_fp);
-                return ['success' => false, 'message' => 'Failed to create destination stream for large file restoration.'];
-            }
+        if (empty($dec_res['success'])) {
+            return [
+                'success' => false,
+                'message' => 'Cryptographic decryption failed: ' . ($dec_res['error'] ?? 'Corrupted or unauthenticated vault archive.'),
+            ];
+        }
 
-            $copied_bytes = stream_copy_to_stream($src_fp, $dst_fp);
-            fflush($dst_fp);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($src_fp);
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-            fclose($dst_fp);
+        // Verify restored file hash against recorded SHA-256
+        if ($expected_hash !== '') {
+            $restored_hash = @hash_file('sha256', $dest_path);
+            if ($restored_hash === false || !hash_equals($expected_hash, $restored_hash)) {
+                wp_delete_file($dest_path);
+                return [
+                    'success' => false,
+                    'message' => 'Integrity check failed: Restored file SHA-256 does not match quarantine record.',
+                ];
+            }
+        }
 
-            if ($copied_bytes === false || $copied_bytes <= 0) {
-                wp_delete_file($temp_dest);
-                return ['success' => false, 'message' => 'Stream copy failed while restoring large file from quarantine.'];
-            }
-
-            if ($expected_hash !== '') {
-                $restored_hash = @hash_file('sha256', $temp_dest);
-                if ($restored_hash === false || !hash_equals($expected_hash, $restored_hash)) {
-                    wp_delete_file($temp_dest);
-                    return ['success' => false, 'message' => 'Integrity check failed: Restored large file SHA-256 does not match quarantine record.'];
-                }
-            }
-
-            global $wp_filesystem;
-            if (empty($wp_filesystem)) {
-                require_once ABSPATH . 'wp-admin/includes/file.php';
-                WP_Filesystem();
-            }
-
-            if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'chmod')) {
-                $wp_filesystem->chmod($temp_dest, $perms);
-            } else {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
-                @chmod($temp_dest, $perms);
-            }
-
-            $moved = false;
-            if (!empty($wp_filesystem) && method_exists($wp_filesystem, 'move')) {
-                $moved = $wp_filesystem->move($temp_dest, $dest_path, true);
-            }
-            if (!$moved) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic filesystem rename fallback
-                $moved = @rename($temp_dest, $dest_path);
-            }
-
-            if (!$moved) {
-                wp_delete_file($temp_dest);
-                return ['success' => false, 'message' => 'Failed to safely move restored large file to destination.'];
-            }
+        // Restore file permissions
+        global $wp_filesystem;
+        if ($wp_filesystem && method_exists($wp_filesystem, 'chmod')) {
+            $wp_filesystem->chmod($dest_path, $perms);
         } else {
-            // Read vault file and extract payload
-            $vault_raw = @file_get_contents($source_path);
-            if ($vault_raw === false) {
-                return ['success' => false, 'message' => 'Failed to read vault file for restoration.'];
-            }
-
-            $payload = $vault_raw;
-            $halt_marker = '__halt_compiler(); ' . '?>';
-            $pos = strpos($vault_raw, $halt_marker);
-            if ($pos !== false) {
-                $payload = ltrim(substr($vault_raw, $pos + strlen($halt_marker)), "\r\n");
-            }
-
-            // Decrypt ciphertext if encrypted
-            if (\WebCareProScanner\Security\SecretVault::is_encrypted($payload)) {
-                $decrypted = \WebCareProScanner\Security\SecretVault::decrypt($payload);
-                if ($decrypted === false) {
-                    return ['success' => false, 'message' => 'Cryptographic decryption failed: Invalid vault key or corrupted vault ciphertext.'];
-                }
-                $clean_data = $decrypted;
-            } else {
-                // Legacy unencrypted plaintext fallback
-                $clean_data = $payload;
-            }
-
-            if ($expected_hash !== '') {
-                $restored_hash = hash('sha256', $clean_data);
-                if (!hash_equals($expected_hash, $restored_hash)) {
-                    return ['success' => false, 'message' => 'Integrity check failed: Decrypted payload SHA-256 does not match quarantine record.'];
-                }
-            }
-
-            // Atomically write restored plaintext to original destination, preventing symlink follower races
-            if (!\WebCareProScanner\Filesystem\PathValidator::safe_atomic_write($dest_path, $clean_data, ABSPATH, $perms)) {
-                return ['success' => false, 'message' => 'Failed to safely restore file to original location. Check directory permissions.'];
-            }
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+            @chmod($dest_path, $perms);
         }
 
         // Unlink vault storage file

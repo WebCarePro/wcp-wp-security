@@ -475,7 +475,72 @@ class VaultRotator {
     }
 
     /**
-     * Re-encrypt <20MB quarantined files and remediation backup snapshots under the new key.
+     * Test whether the first chunk of a V2 Chunked Streaming vault file decrypts with the specified key.
+     */
+    private static function is_chunked_vault_under_key(string $vault_path, string $binary_key): bool {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+        $fp = @fopen($vault_path, 'rb');
+        if (!$fp) {
+            return false;
+        }
+
+        // Seek past PHP guard header
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+        $header_buffer = fread($fp, 4096);
+        $halt_marker = '__halt_compiler(); ?' . '>';
+        $halt_pos = strpos($header_buffer, $halt_marker);
+        if ($halt_pos === false) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($fp);
+            return false;
+        }
+
+        $payload_offset = $halt_pos + strlen($halt_marker);
+        while ($payload_offset < strlen($header_buffer) && ($header_buffer[$payload_offset] === "\r" || $header_buffer[$payload_offset] === "\n")) {
+            $payload_offset++;
+        }
+        fseek($fp, $payload_offset, SEEK_SET);
+
+        $format_line = fgets($fp, 4096);
+        if (!is_string($format_line) || !str_starts_with($format_line, '// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM:')) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($fp);
+            return false;
+        }
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+        $frame_hdr = fread($fp, 32);
+        if (strlen($frame_hdr) !== 32) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+            fclose($fp);
+            return false;
+        }
+
+        $hdr_parts = unpack('Nlen', substr($frame_hdr, 0, 4));
+        $cipher_len = $hdr_parts['len'] ?? 0;
+        $iv  = substr($frame_hdr, 4, 12);
+        $tag = substr($frame_hdr, 16, 16);
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+        $ciphertext = fread($fp, $cipher_len);
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        fclose($fp);
+
+        if (strlen($ciphertext) !== $cipher_len) {
+            return false;
+        }
+
+        $raw_key = strlen($binary_key) === 64 && ctype_xdigit($binary_key)
+            ? (string) hex2bin($binary_key)
+            : (strlen($binary_key) === 32 ? $binary_key : hash('sha256', $binary_key, true));
+
+        $res = @openssl_decrypt($ciphertext, 'aes-256-gcm', $raw_key, OPENSSL_RAW_DATA, $iv, $tag, pack('N', 0));
+        return $res !== false;
+    }
+
+    /**
+     * Re-encrypt quarantined files, remediation backups, and transaction snapshots under the new key.
+     * Supports both V2 Chunked Streaming AEAD (constant RAM) and legacy inline archives.
      */
     private static function rotate_encrypted_disk_archives(string $old_binary_key, string $new_binary_key): array {
         $result     = ['rotated' => 0, 'failed' => []];
@@ -484,7 +549,8 @@ class VaultRotator {
         $candidates = array_merge(
             @glob($base_dir . 'webcare-quarantine/*.vault*') ?: [],
             @glob($base_dir . 'webcare-pro-security/.vault/*.quarantine*') ?: [],
-            @glob($base_dir . 'webcare-pro-security/.backups/remediation/*.bak.php') ?: []
+            @glob($base_dir . 'webcare-pro-security/.backups/remediation/*.bak.php') ?: [],
+            @glob($base_dir . 'webcare-pro-security/.remediation/transactions/*/files/*.bak*') ?: []
         );
 
         $halt_marker = '__halt_compiler(); ?' . '>';
@@ -492,6 +558,56 @@ class VaultRotator {
             if (!is_file($file_path) || is_link($file_path)) {
                 continue;
             }
+
+            // Inspect file format
+            $inspect = SecretVault::inspect_vault_file($file_path);
+            if ($inspect['format'] === SecretVault::VAULT_FORMAT_CHUNKED) {
+                // If already under new key, count as rotated and proceed
+                if (self::is_chunked_vault_under_key($file_path, $new_binary_key)) {
+                    $result['rotated']++;
+                    continue;
+                }
+
+                $temp_dec   = $file_path . '.rot_dec_' . bin2hex(random_bytes(4));
+                $temp_reenc = $file_path . '.rot_enc_' . bin2hex(random_bytes(4));
+
+                $dec_res = SecretVault::decrypt_vault_to_file($file_path, $temp_dec, $old_binary_key);
+                if (empty($dec_res['success'])) {
+                    if (file_exists($temp_dec)) {
+                        wp_delete_file($temp_dec);
+                    }
+                    $result['failed'][] = 'archive:' . basename($file_path);
+                    continue;
+                }
+
+                $enc_res = SecretVault::encrypt_file_to_vault($temp_dec, $temp_reenc, $new_binary_key);
+                wp_delete_file($temp_dec);
+
+                if (empty($enc_res['success']) || !file_exists($temp_reenc) || filesize($temp_reenc) === 0) {
+                    if (file_exists($temp_reenc)) {
+                        wp_delete_file($temp_reenc);
+                    }
+                    $result['failed'][] = 'archive:' . basename($file_path);
+                    continue;
+                }
+
+                // Atomically swap in re-encrypted vault archive
+                if (!@rename($temp_reenc, $file_path)) {
+                    if (!@copy($temp_reenc, $file_path)) {
+                        wp_delete_file($temp_reenc);
+                        $result['failed'][] = 'archive:' . basename($file_path);
+                        continue;
+                    }
+                    wp_delete_file($temp_reenc);
+                }
+
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                @chmod($file_path, 0600);
+                $result['rotated']++;
+                continue;
+            }
+
+            // Fallback for inline AEAD and legacy archives (<20MB)
             $size = (int) @filesize($file_path);
             if ($size <= 0 || $size > 20971520) {
                 continue;

@@ -127,14 +127,22 @@ class TransactionalRemediation {
             return false;
         }
 
-        $backup_key  = 'f_' . count($manifest['items']) . '_' . basename($full_path) . '.bak';
+        $backup_key  = 'f_' . count($manifest['items']) . '_' . basename($full_path) . '.bak.php';
         $backup_path = $tx_dir . '/files/' . $backup_key;
 
-        // Perform byte-for-byte copy
-        // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.ABSPATHDetected -- Pre-remediation safety backup of live file written into wp_upload_dir() transaction vault.
-        if (!@copy($full_path, $backup_path)) {
+        // Perform chunked streaming AEAD encryption into transaction vault
+        $v_res = \WebCareProScanner\Security\SecretVault::encrypt_file_to_vault($full_path, $backup_path);
+        if (empty($v_res['success'])) {
             return false;
         }
+
+        if (!file_exists($backup_path) || filesize($backup_path) === 0) {
+            if (file_exists($backup_path)) {
+                wp_delete_file($backup_path);
+            }
+            return false;
+        }
+
         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
         @chmod($backup_path, 0600);
 
@@ -153,7 +161,11 @@ class TransactionalRemediation {
             'timestamp'       => time(),
         ];
 
-        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+        if (@file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT), LOCK_EX) === false) {
+            wp_delete_file($backup_path);
+            return false;
+        }
         return true;
     }
 
@@ -329,6 +341,15 @@ class TransactionalRemediation {
             return ['success' => false, 'message' => __('This transaction was already rolled back.', 'webcare-pro-security')];
         }
 
+        if (($manifest['status'] ?? '') === 'rollback_applying') {
+            return ['success' => false, 'message' => __('A rollback is already currently in progress for this transaction.', 'webcare-pro-security')];
+        }
+
+        // Set status to rollback_applying to prevent re-entrant or concurrent rollback
+        $manifest['status'] = 'rollback_applying';
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+        @file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT), LOCK_EX);
+
         global $wpdb;
         $restored_files = 0;
         $restored_db    = 0;
@@ -351,46 +372,66 @@ class TransactionalRemediation {
                     continue;
                 }
 
-                if (file_exists($backup_file)) {
-                    // Ensure directory exists
-                    $dir = dirname($target_abs);
-                    if (!is_dir($dir)) {
-                        wp_mkdir_p($dir);
-                    }
+                if (!file_exists($backup_file)) {
+                    $errors[] = sprintf('Backup file missing from transaction vault: %s', esc_html($item['backup_filename'] ?? ''));
+                    continue;
+                }
 
+                // Ensure directory exists
+                $dir = dirname($target_abs);
+                if (!is_dir($dir)) {
+                    wp_mkdir_p($dir);
+                }
+
+                // Decrypt backup to a temporary file
+                $temp_restore = $target_abs . '.webcare_rst_tmp_' . bin2hex(random_bytes(6));
+                $dec_res = \WebCareProScanner\Security\SecretVault::decrypt_vault_to_file($backup_file, $temp_restore, null, true);
+                if (empty($dec_res['success'])) {
+                    if (file_exists($temp_restore)) {
+                        wp_delete_file($temp_restore);
+                    }
+                    $errors[] = sprintf('Cryptographic decryption failed for %s: %s', basename($target_abs), $dec_res['error'] ?? 'Corrupt vault file');
+                    continue;
+                }
+
+                // Verify original hash before moving into place
+                if (!empty($item['original_hash'])) {
+                    $restored_hash = @hash_file('sha256', $temp_restore);
+                    if (!hash_equals((string) $item['original_hash'], (string) $restored_hash)) {
+                        wp_delete_file($temp_restore);
+                        $errors[] = sprintf('Integrity verification failed for %s: restored hash does not match original snapshot.', basename($target_abs));
+                        continue;
+                    }
+                }
+
+                // Atomically move restored file into place
+                if (!@rename($temp_restore, $target_abs)) {
+                    if (!@copy($temp_restore, $target_abs)) {
+                        wp_delete_file($temp_restore);
+                        $errors[] = sprintf(__('Failed to restore file: %s', 'webcare-pro-security'), basename($target_abs));
+                        continue;
+                    }
+                    wp_delete_file($temp_restore);
+                }
+
+                $restored_files++;
+                // Restore original permissions & timestamps
+                if (!empty($item['original_perms'])) {
                     global $wp_filesystem;
-                    $copied = false;
-                    if ($wp_filesystem) {
-                        $copied = $wp_filesystem->copy($backup_file, $target_abs, true);
+                    if ($wp_filesystem && method_exists($wp_filesystem, 'chmod')) {
+                        $wp_filesystem->chmod($target_abs, octdec($item['original_perms']));
                     } else {
-                        $copied = @copy($backup_file, $target_abs);
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+                        @chmod($target_abs, octdec($item['original_perms']));
                     }
-
-                    if ($copied) {
-                        $restored_files++;
-                        // Restore original permissions & timestamps
-                        if (!empty($item['original_perms'])) {
-                            if ($wp_filesystem) {
-                                $wp_filesystem->chmod($target_abs, octdec($item['original_perms']));
-                            } else {
-                                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
-                                @chmod($target_abs, octdec($item['original_perms']));
-                            }
-                        }
-                        if (!empty($item['original_mtime'])) {
-                            if ($wp_filesystem) {
-                                $wp_filesystem->touch($target_abs, (int) $item['original_mtime']);
-                            } else {
-                                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_touch
-                                @touch($target_abs, (int) $item['original_mtime']);
-                            }
-                        }
+                }
+                if (!empty($item['original_mtime'])) {
+                    global $wp_filesystem;
+                    if ($wp_filesystem && method_exists($wp_filesystem, 'touch')) {
+                        $wp_filesystem->touch($target_abs, (int) $item['original_mtime']);
                     } else {
-                        $errors[] = sprintf(
-                            /* translators: %s: file name */
-                            __('Failed to copy restored file: %s', 'webcare-pro-security'),
-                            basename($target_abs)
-                        );
+                        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_touch
+                        @touch($target_abs, (int) $item['original_mtime']);
                     }
                 }
 
@@ -464,11 +505,15 @@ class TransactionalRemediation {
         $user = wp_get_current_user();
         $author = ($user && $user->exists()) ? $user->user_login : 'admin';
 
-        $manifest['status']         = 'rolled_back';
+        $manifest['status']         = empty($errors) ? 'rolled_back' : 'rollback_partial_failure';
         $manifest['rolled_back_at'] = current_time('mysql');
         $manifest['rolled_back_by'] = $author;
+        if (!empty($errors)) {
+            $manifest['rollback_errors'] = $errors;
+        }
 
-        file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT));
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+        @file_put_contents($manifest_file, wp_json_encode($manifest, JSON_PRETTY_PRINT), LOCK_EX);
 
         $msg_parts = [];
         /* translators: %d: number of files */

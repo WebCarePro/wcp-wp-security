@@ -5115,9 +5115,11 @@ class ScannerRoutes {
 
     public static function restore_quarantine(\WP_REST_Request $request) {
         $quarantine_id = (int) $request->get_param('id');
+        $overwrite     = !empty($request->get_param('overwrite'));
+        $allow_legacy  = !empty($request->get_param('allow_legacy'));
 
         $qm = new QuarantineManager();
-        $result = $qm->restore_file($quarantine_id);
+        $result = $qm->restore_file($quarantine_id, $overwrite, $allow_legacy);
 
         return rest_ensure_response($result);
     }

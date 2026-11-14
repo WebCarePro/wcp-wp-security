@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-14T10:11:31.426Z",
+  "generated_at": "2026-11-14T10:40:07.175Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -196,8 +196,8 @@
       "size": 11237
     },
     "includes/Api/ScannerRoutes.php": {
-      "sha256": "52dc4e3c9ddc8c063fddb91bda1f9ca7d4d6ad67c49d3ffbbb1dcca9f7b5abc1",
-      "size": 735180
+      "sha256": "8379f00714262c1e82d3a78e2d133ad3a377e5fd6c80f55879fbd6027bed6857",
+      "size": 735344
     },
     "includes/Auth/ApplicationPasswordSentinel.php": {
       "sha256": "942165dd09813d8b9b94ecd8b6434a099a30bfeb429f5a7913e39c9b1088fb3e",
@@ -688,20 +688,20 @@
       "size": 1192
     },
     "includes/Quarantine/QuarantineManager.php": {
-      "sha256": "ee26e63121ac3c5ff771d9c7d9586b4b380edf7f6d8e8a0127e7c8262425a03d",
-      "size": 37085
+      "sha256": "0cd5b655b6d1524b0ead76ce181c3baa3be6877b34ae9e2736f8e3637b5321a5",
+      "size": 31832
     },
     "includes/Quarantine/ReinfectionWatchdog.php": {
       "sha256": "15a66c5701f26bbf4aef407442f347aa315049f27c8c82d566c6353afcf31cbb",
       "size": 16006
     },
     "includes/Remediation/RemediationManager.php": {
-      "sha256": "6d771cf52e459dff19de59f55e7d43efb9a71f5517716ec3e71e1bf04a370be5",
-      "size": 59546
+      "sha256": "99ae1211aad1cea5d0a3c556bbe6afb5fda7874f6e37567099622658d4280739",
+      "size": 57976
     },
     "includes/Remediation/TransactionalRemediation.php": {
-      "sha256": "0fa547fabeb682ba219bb00e58d6871c42411ee6a6973e09f4421d11ca5e3c4b",
-      "size": 25617
+      "sha256": "c7e9f988af5ce4903a7ee7801081bcdb2581a81b95d5cfeaaa2ac5ed7b367e22",
+      "size": 28033
     },
     "includes/Reports/IncidentReportEngine.php": {
       "sha256": "2d94eedefaa631e6a5abc3224a79f52ca9b651d5d092e1f9cd364374ceaddd34",
@@ -764,12 +764,12 @@
       "size": 30891
     },
     "includes/Security/SecretVault.php": {
-      "sha256": "7cfc631a1654e662dd3a0a7ca92982362a25325de829ef0b06b3eeae6b8fb3d2",
-      "size": 13546
+      "sha256": "8e34979f481bc3febf3125f530cf9c87c8b0cb0163566f3505e84a2339192294",
+      "size": 31800
     },
     "includes/Security/VaultRotator.php": {
-      "sha256": "673ba5e71536edce92c7491f3e77c6345241b05c7c6a2cc82eafc01357037f14",
-      "size": 23448
+      "sha256": "987b436bd283b1a7d5f8bc84bf4ef41bad4da11f258034c6626b64d8aa283307",
+      "size": 28582
     },
     "includes/SupplyChain/InstallRiskAdvisor.php": {
       "sha256": "efd655f0d6222111f6e9ef7e16f6018f4d198289d78b14680d2d48e38ab64793",
