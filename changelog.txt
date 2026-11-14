@@ -1,4 +1,14 @@
 ﻿v:2.14.0 - 2026-11-14
+- Rule-Precedence Model Hardening & Block-Overrides-Allow Enforcement (P1 Follow-up):
+  * Pre-Boot Micro-WAF Rule Precedence (MicroWafCompiler.php):
+    - Partitioned visual rules into $v_sorted_rules so all explicit administrator Block rules execute ahead of Allow rules.
+    - An earlier matching Allow rule can no longer suppress, bypass, or break out before subsequent explicit Block rules are evaluated.
+    - Both rule evaluation orders (Allow-first vs. Block-first) now produce identical security decisions, guaranteeing that matching Block rules unconditionally override Allow rules.
+  * Runtime Modular Firewall Rule Precedence (ModularFirewallSynthesizer.php & FirewallEngine.php):
+    - Partitioned runtime modular rules so Block/Rate-limit/Challenge/Monitor rules execute ahead of Allow rules.
+    - Updated FirewallEngine.php to ensure matching custom visual allow rules bypass operational/rate-limiting/bot modules while preserving mandatory exploit signatures (SQLi, RCE, LFI, PHP upload) in evaluate_rules().
+  * Adversarial Regression Suite Verification:
+    - Added Test 9 to the adversarial test suite covering all permutations: Allow first + Block second, Block first + Allow second, benign traffic pass-through, and exploit prevention on allowed endpoints. 49/49 assertions verified passing.
 - Non-Bypassable Exploit Signatures & Granular Visual Rule Scoping (P0/P1 Review Hardening):
   * Mandatory Exploit Signatures Unconditional Enforcement (P0):
     - Replaced closure-terminating early return in MicroWafCompiler.php on matching Visual allow rules (empty($v_ex)) with $vis_allow_all_custom = true; break;. This skips subsequent configurable visual and modular checks while falling through to execute mandatory exploit signatures.

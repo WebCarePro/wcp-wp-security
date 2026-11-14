@@ -1208,7 +1208,24 @@ class ModularFirewallSynthesizer {
         $exempt_all = false;
         $exempt_ids = [];
 
+        // Rule-Precedence Model (Block-overrides-Allow):
+        // Partition rules so explicit administrator Block/RateLimit/Challenge/Monitor rules execute ahead of Allow rules,
+        // ensuring Allow rules can never suppress or bypass subsequent Block rules.
+        $sorted_rules = [];
         foreach ($rules as $r) {
+            $act = (string) ($r['action_type'] ?? '');
+            if ($act !== 'allow') {
+                $sorted_rules[] = $r;
+            }
+        }
+        foreach ($rules as $r) {
+            $act = (string) ($r['action_type'] ?? '');
+            if ($act === 'allow') {
+                $sorted_rules[] = $r;
+            }
+        }
+
+        foreach ($sorted_rules as $r) {
             $mode = $r['current_mode'] ?? 'off';
             if ($mode === 'off') {
                 continue;

@@ -1055,6 +1055,7 @@ class FirewallEngine {
             }
         }
 
+        $custom_allow_matched = false;
         // Modular Intelligence Firewall & Custom Firewall Rules Runtime Enforcement
         // Evaluated ahead of rate-limiter/PoW gates so explicit Custom rules return exact configured verdicts immediately.
         if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
@@ -1063,7 +1064,9 @@ class FirewallEngine {
                 $mod_action = (string) ($modular_violation['action_type'] ?? '');
                 if ($mod_action === 'allow') {
                     if (empty($modular_violation['exempt_rules'])) {
-                        return;
+                        // Custom visual allow rule matched: skip subsequent operational/rate-limiting/bot modules,
+                        // but fall through to enforce critical exploit signatures in evaluate_rules()
+                        $custom_allow_matched = true;
                     }
                 } elseif ($mod_action === 'challenge_pow' && !empty($modular_violation['blocked']) && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
                     $ua_raw = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
@@ -1103,29 +1106,31 @@ class FirewallEngine {
         }
 
         // Differential Threat Score & Behavioral Pre-Flight Sentinel (CAF Phase 3)
-        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
+        if (!$custom_allow_matched && class_exists('\\WebCareProScanner\\Firewall\\CAF\\ThreatScoreTracker')) {
             \WebCareProScanner\Firewall\CAF\ThreatScoreTracker::inspect_client_threat($client_ip);
         }
 
         // Adaptive Rate Limiter & Token-Bucket Throttling
-        if (class_exists('\\WebCareProScanner\\Firewall\\AdaptiveRateLimiter')) {
+        if (!$custom_allow_matched && class_exists('\\WebCareProScanner\\Firewall\\AdaptiveRateLimiter')) {
             \WebCareProScanner\Firewall\AdaptiveRateLimiter::check_request($client_ip);
         }
 
         // WebCrypto Proof-of-Work (PoW) Enforced Suspicious IP Sentinel
-        $pow_ips = get_option('webcare_pow_enforced_ips', []);
-        if (is_array($pow_ips) && isset($pow_ips[$client_ip])) {
-            $pow_exp = (int) ($pow_ips[$client_ip]['expires_at'] ?? 0);
-            if ($pow_exp > 0 && time() > $pow_exp) {
-                unset($pow_ips[$client_ip]);
-                update_option('webcare_pow_enforced_ips', $pow_ips, false);
-            } elseif (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
-                \WebCareProScanner\Firewall\BotReconDefense::verify_or_challenge_client();
+        if (!$custom_allow_matched) {
+            $pow_ips = get_option('webcare_pow_enforced_ips', []);
+            if (is_array($pow_ips) && isset($pow_ips[$client_ip])) {
+                $pow_exp = (int) ($pow_ips[$client_ip]['expires_at'] ?? 0);
+                if ($pow_exp > 0 && time() > $pow_exp) {
+                    unset($pow_ips[$client_ip]);
+                    update_option('webcare_pow_enforced_ips', $pow_ips, false);
+                } elseif (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+                    \WebCareProScanner\Firewall\BotReconDefense::verify_or_challenge_client();
+                }
             }
         }
 
         // HTTP/2 & HTTP/3 Pseudo-Header and Client-Hint Anomaly Sentinel (CAF Phase 3)
-        if (class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
+        if (!$custom_allow_matched && class_exists('\\WebCareProScanner\\Firewall\\BotReconDefense')) {
             $h2_anomaly = \WebCareProScanner\Firewall\BotReconDefense::check_http2_pseudo_header_anomaly();
             if ($h2_anomaly !== null) {
                 // Record threat score increment for header anomaly (+15)
@@ -2040,11 +2045,13 @@ class FirewallEngine {
         }
 
         // Check Bot Recon Defense & AI Scraper Shield
-        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
-        $bot_rule = BotReconDefense::inspect_bot($client_ip, $user_agent, $settings);
-        if ($bot_rule !== null) {
-            self::handle_rule_violation($bot_rule, $settings, $client_ip, 403);
-                    }
+        if (!$custom_allow_matched) {
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
+            $bot_rule = BotReconDefense::inspect_bot($client_ip, $user_agent, $settings);
+            if ($bot_rule !== null) {
+                self::handle_rule_violation($bot_rule, $settings, $client_ip, 403);
+            }
+        }
 
         // Check Active Virtual Patches (Tier 1: In-Memory WAF Lite Shield)
         if (class_exists('\\WebCareProScanner\\Firewall\\VirtualPatchManager')) {
@@ -2067,7 +2074,10 @@ class FirewallEngine {
 
         if ($rule_triggered) {
             self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
-                    } else {
+        } else {
+            if ($custom_allow_matched) {
+                return;
+            }
             // Clean request passed all firewall filters: profile route parameters
             if (class_exists('\\WebCareProScanner\\Firewall\\LearningModeEngine')) {
                 \WebCareProScanner\Firewall\LearningModeEngine::profile_benign_request();
