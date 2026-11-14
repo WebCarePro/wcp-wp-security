@@ -1770,8 +1770,21 @@ class FirewallEngine {
         // Rule 8: Multi-Dimensional $_FILES Payload Pre-Flight Inspection
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-flight upload inspection across all incoming POSTs
         if (!empty($_FILES) && !empty($settings['waf_block_malicious_uploads'])) {
+            $files_overflow = false;
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-flight upload inspection across all incoming POSTs
-            $all_uploaded_files = self::flatten_uploaded_files($_FILES);
+            $all_uploaded_files = self::flatten_uploaded_files($_FILES, 4, 50, $files_overflow);
+            if ($files_overflow) {
+                $rule_triggered = [
+                    'id'          => 'WAF-MULTIPART-FILE-COUNT-EXCEEDED',
+                    'name'        => 'Multipart File Count / Nesting Ceiling Enforced',
+                    'category'    => 'Protocol Defense',
+                    'description' => 'Multipart request exceeds maximum allowed file count (50) or nesting depth (4); failing closed.',
+                    'match_type'  => 'Upload Array Overflow',
+                    'match_value' => 'count > 50 or depth > 4',
+                    'payload'     => 'Multipart $_FILES overflow (>50 files or >4 nesting depth)',
+                ];
+                self::handle_rule_violation($rule_triggered, $settings, $client_ip, 403);
+            }
             foreach ($all_uploaded_files as $uploaded_item) {
                 // Pre-flight inspection: pass log_and_ban = false to let handle_rule_violation() perform the single authoritative log, ban, and 403 block
                 $upload_check = self::inspect_uploaded_file($uploaded_item, false);
@@ -2241,15 +2254,35 @@ class FirewallEngine {
         $is_multipart  = stripos($content_type, 'multipart/form-data') !== false;
 
         if (in_array($request_method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            // Hard-bounded inspection ceiling: min 256 KB, default 4 MB, max 16 MB (Observation A)
             $max_inspect_bytes = isset($settings['waf_max_inspected_body_bytes'])
-                ? max(262144, (int) $settings['waf_max_inspected_body_bytes'])
-                : 4194304; // 4 MB default ceiling for both standard and multipart requests
+                ? min(16777216, max(262144, (int) $settings['waf_max_inspected_body_bytes']))
+                : 4194304;
             $chunk_size        = 65536; // 64 KB chunks
             $overlap_size      = 8192;  // 8 KB rolling overlap
 
-            $expected_content_length = (isset($_SERVER['CONTENT_LENGTH']) && is_numeric($_SERVER['CONTENT_LENGTH']))
-                ? max(0, (int) $_SERVER['CONTENT_LENGTH'])
-                : 0;
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw header inspected for strict ctype_digit protocol validation
+            $raw_cl_server = isset($_SERVER['CONTENT_LENGTH']) ? trim((string) wp_unslash($_SERVER['CONTENT_LENGTH'])) : '';
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw header inspected for strict ctype_digit protocol validation
+            $raw_cl_http   = isset($_SERVER['HTTP_CONTENT_LENGTH']) ? trim((string) wp_unslash($_SERVER['HTTP_CONTENT_LENGTH'])) : '';
+
+            if (
+                ($raw_cl_server !== '' && $raw_cl_http !== '' && $raw_cl_server !== $raw_cl_http)
+                || ($raw_cl_server !== '' && !ctype_digit($raw_cl_server))
+                || ($raw_cl_http !== '' && !ctype_digit($raw_cl_http))
+            ) {
+                return [
+                    'id'          => 'WAF-MALFORMED-CONTENT-LENGTH',
+                    'name'        => 'Malformed or Conflicting Content-Length Guard',
+                    'category'    => 'Protocol Defense',
+                    'description' => 'Request contains a malformed, negative, or conflicting Content-Length header; failing closed.',
+                    'payload'     => sprintf('CONTENT_LENGTH=%s HTTP_CONTENT_LENGTH=%s', substr($raw_cl_server, 0, 40), substr($raw_cl_http, 0, 40)),
+                ];
+            }
+
+            $effective_cl_str        = $raw_cl_server !== '' ? $raw_cl_server : $raw_cl_http;
+            $has_valid_cl            = ($effective_cl_str !== '' && ctype_digit($effective_cl_str));
+            $expected_content_length = $has_valid_cl ? (int) $effective_cl_str : 0;
 
             // 1. Enforce explicit size ceiling across ALL body types (including multipart/form-data)
             if ($expected_content_length > $max_inspect_bytes) {
@@ -2262,43 +2295,103 @@ class FirewallEngine {
                 ];
             }
 
-            // For multipart uploads, also enforce total uploaded file size ceiling and reject INI/FORM size overflow errors
+            // 2. Authoritative Multipart Accounting (Files + Text Fields + Content-Length verification)
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Pre-flight multipart resource ceiling validation
-            if ($is_multipart && !empty($_FILES) && is_array($_FILES)) {
+            if ($is_multipart) {
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                $has_php_multipart_data = (!empty($_POST) || !empty($_FILES));
+                if ($has_php_multipart_data && !isset($GLOBALS['WEBCARE_TEST_RAW_INPUT']) && (!$has_valid_cl || $expected_content_length <= 0)) {
+                    return [
+                        'id'          => 'WAF-MULTIPART-MISSING-CONTENT-LENGTH',
+                        'name'        => 'Multipart Content-Length Provenance Guard',
+                        'category'    => 'Protocol Defense',
+                        'description' => 'Multipart request is missing an authoritative positive Content-Length header; failing closed.',
+                        'payload'     => 'Missing Content-Length on multipart request',
+                    ];
+                }
+
+                // Account for multipart text fields in $_POST
+                // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                $post_text_bytes = (!empty($_POST) && is_array($_POST))
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                    ? strlen(rawurldecode(http_build_query(wp_unslash($_POST), '', '&', PHP_QUERY_RFC3986)))
+                    : 0;
+
                 $total_files_bytes = 0;
                 // phpcs:ignore WordPress.Security.NonceVerification.Missing
-                foreach (self::flatten_uploaded_files($_FILES) as $uf) {
-                    $u_err = isset($uf['error']) ? (int) $uf['error'] : 0;
-                    if (in_array($u_err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE, UPLOAD_ERR_PARTIAL], true)) {
+                if (!empty($_FILES) && is_array($_FILES)) {
+                    $files_overflow = false;
+                    // phpcs:ignore WordPress.Security.NonceVerification.Missing
+                    $flattened_files = self::flatten_uploaded_files($_FILES, 4, 50, $files_overflow);
+                    if ($files_overflow) {
                         return [
-                            'id'          => 'WAF-MULTIPART-UPLOAD-INCOMPLETE-OR-OVERSIZED',
-                            'name'        => 'Multipart Upload Size / Completeness Guard',
+                            'id'          => 'WAF-MULTIPART-FILE-COUNT-EXCEEDED',
+                            'name'        => 'Multipart File Count / Nesting Ceiling Enforced',
                             'category'    => 'Protocol Defense',
-                            'description' => 'Multipart file upload exceeded size limits or was only partially received.',
-                            'payload'     => sprintf('Upload error code: %d', $u_err),
+                            'description' => 'Multipart request exceeds maximum allowed file count (50) or nesting depth (4); failing closed.',
+                            'payload'     => 'Multipart $_FILES overflow (>50 files or >4 nesting depth)',
                         ];
                     }
-                    $f_sz = isset($uf['size']) ? max(0, (int) $uf['size']) : 0;
-                    if (!empty($uf['tmp_name']) && is_string($uf['tmp_name']) && file_exists($uf['tmp_name'])) {
-                        $disk_sz = @filesize($uf['tmp_name']);
-                        if (is_int($disk_sz) && $disk_sz > $f_sz) {
-                            $f_sz = $disk_sz;
+
+                    foreach ($flattened_files as $uf) {
+                        $u_err = isset($uf['error']) ? (int) $uf['error'] : 0;
+                        if (in_array($u_err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE, UPLOAD_ERR_PARTIAL, UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE], true)) {
+                            return [
+                                'id'          => 'WAF-MULTIPART-UPLOAD-INCOMPLETE-OR-OVERSIZED',
+                                'name'        => 'Multipart Upload Size / Completeness Guard',
+                                'category'    => 'Protocol Defense',
+                                'description' => 'Multipart file upload exceeded size limits or was only partially received.',
+                                'payload'     => sprintf('Upload error code: %d', $u_err),
+                            ];
                         }
+                        $declared_sz = isset($uf['size']) ? (int) $uf['size'] : -1;
+                        $tmp_p       = isset($uf['tmp_name']) && is_string($uf['tmp_name']) ? $uf['tmp_name'] : '';
+                        if ($tmp_p === '' || !file_exists($tmp_p) || !is_readable($tmp_p)) {
+                            return [
+                                'id'          => 'WAF-MULTIPART-UPLOAD-INCOMPLETE-OR-OVERSIZED',
+                                'name'        => 'Multipart Temp File Verification Guard',
+                                'category'    => 'Protocol Defense',
+                                'description' => 'Uploaded temporary file is missing or unreadable during multipart accounting; failing closed.',
+                                'payload'     => sprintf('Missing/unreadable tmp_name for %s', (string) ($uf['name'] ?? 'unknown')),
+                            ];
+                        }
+                        clearstatcache(true, $tmp_p);
+                        $disk_sz = @filesize($tmp_p);
+                        if ($disk_sz === false || $disk_sz < 0 || ($declared_sz >= 0 && $declared_sz !== $disk_sz)) {
+                            return [
+                                'id'          => 'WAF-MULTIPART-SIZE-MISMATCH',
+                                'name'        => 'Multipart Declared vs Actual File Size Mismatch',
+                                'category'    => 'Protocol Defense',
+                                'description' => 'Declared upload file size does not match actual temporary file size on disk; failing closed.',
+                                'payload'     => sprintf('Declared: %d, Disk: %s', $declared_sz, is_int($disk_sz) ? (string) $disk_sz : 'false'),
+                            ];
+                        }
+                        $total_files_bytes += $disk_sz;
                     }
-                    $total_files_bytes += $f_sz;
-                    if ($total_files_bytes > $max_inspect_bytes) {
-                        return [
-                            'id'          => 'WAF-BODY-INSPECTION-LIMIT-EXCEEDED',
-                            'name'        => 'Multipart Upload Ceiling Enforced',
-                            'category'    => 'Protocol Defense',
-                            'description' => 'Total multipart uploaded file bytes exceed maximum safe inspection policy.',
-                            'payload'     => sprintf('Multipart files total: %d bytes (limit: %d)', $total_files_bytes, $max_inspect_bytes),
-                        ];
-                    }
+                }
+
+                $accounted_multipart_bytes = $post_text_bytes + $total_files_bytes;
+                if ($accounted_multipart_bytes > $max_inspect_bytes) {
+                    return [
+                        'id'          => 'WAF-BODY-INSPECTION-LIMIT-EXCEEDED',
+                        'name'        => 'Multipart Total Payload Ceiling Enforced',
+                        'category'    => 'Protocol Defense',
+                        'description' => 'Combined multipart text fields and uploaded files exceed maximum safe inspection size.',
+                        'payload'     => sprintf('Multipart accounted total: %d bytes (limit: %d)', $accounted_multipart_bytes, $max_inspect_bytes),
+                    ];
+                }
+                if ($has_valid_cl && $expected_content_length > 0 && $accounted_multipart_bytes > $expected_content_length) {
+                    return [
+                        'id'          => 'WAF-MULTIPART-SIZE-MISMATCH',
+                        'name'        => 'Multipart Content-Length Under-Report Guard',
+                        'category'    => 'Protocol Defense',
+                        'description' => 'Actual multipart payload size exceeds declared Content-Length header; failing closed.',
+                        'payload'     => sprintf('Accounted: %d bytes > Content-Length: %d bytes', $accounted_multipart_bytes, $expected_content_length),
+                    ];
                 }
             }
 
-            // 2. Explicit stream-state tracking (fail-closed on open/read failure or truncated body)
+            // 3. Explicit stream-state tracking (fail-closed on open/read failure or truncated body)
             $stream_opened        = false;
             $stream_read_failed   = false;
             $bytes_read           = 0;
@@ -2335,16 +2428,7 @@ class FirewallEngine {
                         $exceeded = true;
                         break;
                     }
-                    $window = $prev_tail . $chunk;
-                    $norm_w = wp_unslash($window);
-                    if (strpos($norm_w, '\\u') !== false) {
-                        $norm_w = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
-                            return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
-                        }, $norm_w);
-                    }
-                    $params_to_check[] = $norm_w;
-                    $full_raw_body    .= $chunk;
-                    $prev_tail         = strlen($chunk) > $overlap_size ? substr($chunk, -$overlap_size) : $chunk;
+                    $full_raw_body .= $chunk;
                 }
                 if (!$stream_read_failed && !$exceeded) {
                     $inspection_completed = true;
@@ -2356,7 +2440,7 @@ class FirewallEngine {
                     $stream_opened      = false;
                     $stream_read_failed = ($expected_content_length > 0);
                 } else {
-                    $fail_at       = isset($GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT']) && is_numeric($GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT'])
+                    $fail_at = isset($GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT']) && is_numeric($GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT'])
                         ? (int) $GLOBALS['WEBCARE_TEST_FORCE_FREAD_FAIL_AT']
                         : -1;
 
@@ -2379,16 +2463,7 @@ class FirewallEngine {
                             $exceeded = true;
                             break;
                         }
-                        $window = $prev_tail . $raw_chunk;
-                        $norm_w = wp_unslash($window);
-                        if (strpos($norm_w, '\\u') !== false) {
-                            $norm_w = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
-                                return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
-                            }, $norm_w);
-                        }
-                        $params_to_check[] = $norm_w;
-                        $full_raw_body    .= $raw_chunk;
-                        $prev_tail         = strlen($raw_chunk) > $overlap_size ? substr($raw_chunk, -$overlap_size) : $raw_chunk;
+                        $full_raw_body .= $raw_chunk;
                     }
                     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                     @fclose($in_fp);
@@ -2433,6 +2508,14 @@ class FirewallEngine {
             }
 
             if ($full_raw_body !== '') {
+                $norm_body = wp_unslash($full_raw_body);
+                if (strpos($norm_body, '\\u') !== false) {
+                    $norm_body = (string) preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/', static function ($m) {
+                        return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
+                    }, $norm_body);
+                }
+                $params_to_check[] = $norm_body;
+
                 $batch_sub_payloads = self::extract_rest_batch_payloads($raw_uri, $full_raw_body);
                 if (!empty($batch_sub_payloads)) {
                     $params_to_check = array_merge($params_to_check, $batch_sub_payloads);
@@ -6230,23 +6313,28 @@ class FirewallEngine {
      * of ['name' => string, 'tmp_name' => string, 'type' => string, 'error' => int, 'size' => int].
      *
      * Guarded with depth cap (<= 4) and max count (<= 50) to prevent pathological DOS arrays.
+     * Sets $overflow = true if the array exceeds max files or max depth (fails closed).
      *
      * @param array $files_array
      * @param int   $max_depth
      * @param int   $max_files
+     * @param bool  $overflow Passed by reference, set to true if count/depth exceeds limits.
      * @return array<int, array<string, mixed>>
      */
-    public static function flatten_uploaded_files(array $files_array, int $max_depth = 4, int $max_files = 50): array {
+    public static function flatten_uploaded_files(array $files_array, int $max_depth = 4, int $max_files = 50, bool &$overflow = false): array {
         $normalized = [];
+        $overflow   = false;
 
-        $walk = static function ($names, $tmp_names, $types, $errors, $sizes, int $depth) use (&$walk, &$normalized, $max_depth, $max_files): void {
-            if (count($normalized) >= $max_files || $depth > $max_depth) {
+        $walk = static function ($names, $tmp_names, $types, $errors, $sizes, int $depth) use (&$walk, &$normalized, &$overflow, $max_depth, $max_files): void {
+            if ($depth > $max_depth) {
+                $overflow = true;
                 return;
             }
 
             if (is_array($names)) {
                 foreach ($names as $k => $sub_name) {
                     if (count($normalized) >= $max_files) {
+                        $overflow = true;
                         break;
                     }
                     $walk(
@@ -6262,6 +6350,10 @@ class FirewallEngine {
             }
 
             if (is_string($names) && $names !== '') {
+                if (count($normalized) >= $max_files) {
+                    $overflow = true;
+                    return;
+                }
                 $normalized[] = [
                     'name'     => $names,
                     'tmp_name' => is_string($tmp_names) ? $tmp_names : '',
@@ -6273,11 +6365,12 @@ class FirewallEngine {
         };
 
         foreach ($files_array as $file_info) {
-            if (count($normalized) >= $max_files) {
-                break;
-            }
             if (!is_array($file_info) || !isset($file_info['name'])) {
                 continue;
+            }
+            if (count($normalized) >= $max_files) {
+                $overflow = true;
+                break;
             }
             $walk(
                 $file_info['name'],
@@ -6492,7 +6585,24 @@ class FirewallEngine {
 
             // 4. SVG XSS & Active JavaScript Audit (Rule #54: includes transparent .svgz decompression)
             if ($ext === 'svg' || $ext === 'svgz') {
-                $content = @file_get_contents($tmp_path, false, null, 0, 1048576); // Inspect up to 1MB
+                clearstatcache(true, $tmp_path);
+                $svg_fsize = @filesize($tmp_path);
+                $u_max = isset($settings['waf_max_inspected_body_bytes']) ? min(16777216, max(262144, (int) $settings['waf_max_inspected_body_bytes'])) : 10485760;
+                if ($svg_fsize === false || $svg_fsize < 0 || $svg_fsize > $u_max) {
+                    $file['error']     = __('Security Firewall: SVG file is unreadable or exceeds inspection limit.', 'webcare-pro-security');
+                    $file['rule_id']   = 'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED';
+                    $file['rule_name'] = 'Upload Scan Integrity & Mutation Guard';
+                    $file['category']  = 'Malicious File Upload';
+                    return $file;
+                }
+                $content = @file_get_contents($tmp_path);
+                if ($content === false || strlen($content) !== $svg_fsize) {
+                    $file['error']     = __('Security Firewall: Incomplete read while inspecting SVG vector file.', 'webcare-pro-security');
+                    $file['rule_id']   = 'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED';
+                    $file['rule_name'] = 'Upload Scan Integrity & Mutation Guard';
+                    $file['category']  = 'Malicious File Upload';
+                    return $file;
+                }
                 if (!empty($content)) {
                     if (substr($content, 0, 2) === "\x1f\x8b" && function_exists('gzdecode')) {
                         $decompressed = @gzdecode($content);
@@ -6531,34 +6641,101 @@ class FirewallEngine {
                 }
             }
 
-            // 5. Embedded PHP Polyglots & Phar Deserialization Headers in Media (Full-stream chunked inspection with overlap)
+            // 5. Embedded PHP Polyglots & Phar Deserialization Headers in Media (Full-stream chunked inspection with overlap and integrity revalidation)
             $image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf', 'ico', 'avif'];
             if (in_array($ext, $image_exts, true)) {
-                $php_pattern = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
+                clearstatcache(true, $tmp_path);
+                $expected_fsize = @filesize($tmp_path);
+                $initial_mtime  = @filemtime($tmp_path);
+                $initial_inode  = @fileinode($tmp_path);
+                $u_max = isset($settings['waf_max_inspected_body_bytes']) ? min(16777216, max(262144, (int) $settings['waf_max_inspected_body_bytes'])) : 10485760;
+
+                $integrity_violation = false;
+                $integrity_reason    = '';
+
+                if ($expected_fsize === false || $expected_fsize < 0) {
+                    $integrity_violation = true;
+                    $integrity_reason    = 'Unreadable temp file size';
+                } elseif ($expected_fsize > $u_max) {
+                    $integrity_violation = true;
+                    $integrity_reason    = sprintf('Temp file size (%d) exceeds inspection limit (%d)', $expected_fsize, $u_max);
+                } elseif (isset($file['size']) && (int) $file['size'] > 0 && (int) $file['size'] !== $expected_fsize) {
+                    $integrity_violation = true;
+                    $integrity_reason    = sprintf('Declared size (%d) does not match disk size (%d)', (int) $file['size'], $expected_fsize);
+                }
+
+                if ($integrity_violation) {
+                    $client_ip = self::get_client_ip();
+                    if ($log_and_ban) {
+                        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                            self::add_blocked_ip(
+                                $client_ip,
+                                sprintf('[WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED] Upload verification failed: %s (%s)', $filename, $integrity_reason),
+                                86400,
+                                'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED',
+                                'Upload Scan Integrity & Mutation Guard',
+                                'Malicious File Upload'
+                            );
+                        }
+                        self::log_incident([
+                            'id'          => 'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED',
+                            'category'    => 'Malicious File Upload',
+                            'description' => sprintf('Upload verification failed for "%s": %s', esc_html($filename), esc_html($integrity_reason)),
+                            'payload'     => "Filename: {$filename} Reason: {$integrity_reason}",
+                        ], 'blocked');
+                    }
+
+                    $file['error']     = __('Security Firewall: Uploaded file verification failed (size mismatch or inspection limit exceeded).', 'webcare-pro-security');
+                    $file['rule_id']   = 'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED';
+                    $file['rule_name'] = 'Upload Scan Integrity & Mutation Guard';
+                    $file['category']  = 'Malicious File Upload';
+                    return $file;
+                }
+
+                $php_pattern  = '/<\?(?:php\s+[\s\S]{0,500}?(?:eval|assert|system|passthru|shell_exec|exec|base64_decode|\$_[A-Z]+|\$[a-zA-Z0-9_]+)|\=\s*[\s\S]{0,200}?(?:eval|assert|\$_[A-Z]+|\$[a-zA-Z0-9_]+))/i';
                 $polyglot_hit = false;
+                $h_ctx        = hash_init('sha256');
+
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
                 $ufp = @fopen($tmp_path, 'rb');
                 if (!is_resource($ufp)) {
-                    $polyglot_hit = true; // Fail closed if temp upload cannot be opened for inspection
+                    $integrity_violation = true;
+                    $integrity_reason    = 'Failed to open temp file for streaming inspection';
                 } else {
                     $u_prev = '';
                     $u_read = 0;
-                    $u_max  = isset($settings['waf_max_inspected_body_bytes']) ? max(262144, (int) $settings['waf_max_inspected_body_bytes']) : 10485760;
                     while (!feof($ufp)) {
                         // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
                         $u_chunk = @fread($ufp, 65536);
                         if ($u_chunk === false) {
-                            $polyglot_hit = true;
+                            $integrity_violation = true;
+                            $integrity_reason    = 'fread error during chunked scan';
                             break;
                         }
                         if ($u_chunk === '') {
                             break;
                         }
+
+                        hash_update($h_ctx, $u_chunk);
                         $u_read += strlen($u_chunk);
-                        if ($u_read > $u_max) {
-                            $polyglot_hit = true;
+
+                        // Test injection hook for short read (simulate truncated read before reaching expected filesize)
+                        if (!empty($GLOBALS['WEBCARE_TEST_UPLOAD_SHORT_READ'])) {
                             break;
                         }
+
+                        // Test injection hook for mid-scan mutation callback
+                        if (isset($GLOBALS['WEBCARE_TEST_UPLOAD_MUTATE_CALLBACK']) && is_callable($GLOBALS['WEBCARE_TEST_UPLOAD_MUTATE_CALLBACK'])) {
+                            call_user_func($GLOBALS['WEBCARE_TEST_UPLOAD_MUTATE_CALLBACK'], $tmp_path);
+                            unset($GLOBALS['WEBCARE_TEST_UPLOAD_MUTATE_CALLBACK']); // invoke once
+                        }
+
+                        if ($u_read > $u_max) {
+                            $integrity_violation = true;
+                            $integrity_reason    = 'Bytes read exceeded inspection limit during scan';
+                            break;
+                        }
+
                         $u_win = $u_prev . $u_chunk;
                         if (preg_match($php_pattern, $u_win) || stripos($u_win, '__HALT_COMPILER()') !== false) {
                             $polyglot_hit = true;
@@ -6569,6 +6746,63 @@ class FirewallEngine {
                     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
                     @fclose($ufp);
                 }
+
+                $streamed_sha256 = hash_final($h_ctx);
+
+                // Post-scan disk revalidation
+                if (!$polyglot_hit && !$integrity_violation) {
+                    clearstatcache(true, $tmp_path);
+                    $post_fsize = @filesize($tmp_path);
+                    $post_mtime = @filemtime($tmp_path);
+                    $post_inode = @fileinode($tmp_path);
+                    $disk_sha   = (string) @hash_file('sha256', $tmp_path);
+
+                    if ($u_read !== $expected_fsize) {
+                        $integrity_violation = true;
+                        $integrity_reason    = sprintf('Incomplete read: read %d bytes of expected %d bytes', $u_read, $expected_fsize);
+                    } elseif ($post_fsize !== $expected_fsize) {
+                        $integrity_violation = true;
+                        $integrity_reason    = sprintf('File size mutated post-scan: was %d, now %d', $expected_fsize, $post_fsize);
+                    } elseif ($post_mtime !== $initial_mtime) {
+                        $integrity_violation = true;
+                        $integrity_reason    = 'File mtime mutated during scan';
+                    } elseif ($post_inode !== $initial_inode) {
+                        $integrity_violation = true;
+                        $integrity_reason    = 'File inode mutated during scan (file swap detected)';
+                    } elseif (!hash_equals($streamed_sha256, $disk_sha)) {
+                        $integrity_violation = true;
+                        $integrity_reason    = 'Disk SHA-256 does not match streamed SHA-256 (file content mutated mid-scan)';
+                    }
+                }
+
+                if ($integrity_violation) {
+                    $client_ip = self::get_client_ip();
+                    if ($log_and_ban) {
+                        if (!self::is_authenticated_administrator() && !self::is_server_origin_or_loopback($client_ip)) {
+                            self::add_blocked_ip(
+                                $client_ip,
+                                sprintf('[WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED] Upload verification failed: %s (%s)', $filename, $integrity_reason),
+                                86400,
+                                'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED',
+                                'Upload Scan Integrity & Mutation Guard',
+                                'Malicious File Upload'
+                            );
+                        }
+                        self::log_incident([
+                            'id'          => 'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED',
+                            'category'    => 'Malicious File Upload',
+                            'description' => sprintf('Upload verification failed for "%s": %s', esc_html($filename), esc_html($integrity_reason)),
+                            'payload'     => "Filename: {$filename} Reason: {$integrity_reason}",
+                        ], 'blocked');
+                    }
+
+                    $file['error']     = __('Security Firewall: Uploaded file verification failed (incomplete read or disk mutation detected).', 'webcare-pro-security');
+                    $file['rule_id']   = 'WAF-UPLOAD-SCAN-INCOMPLETE-OR-MUTATED';
+                    $file['rule_name'] = 'Upload Scan Integrity & Mutation Guard';
+                    $file['category']  = 'Malicious File Upload';
+                    return $file;
+                }
+
                 if ($polyglot_hit) {
                     $client_ip = self::get_client_ip();
                     if ($log_and_ban) {
