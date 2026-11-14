@@ -645,6 +645,46 @@ class FirewallEngine {
     }
 
     /**
+     * Safe-pass verification for authenticated Editors, Authors, and Shop Managers in page builder/REST contexts (WCP-16).
+     */
+    public static function is_verified_editor_builder_request(string $request_uri): bool {
+        if (!function_exists('is_user_logged_in') || !is_user_logged_in()) {
+            return false;
+        }
+
+        if (!function_exists('current_user_can') || !(current_user_can('edit_posts') || current_user_can('manage_woocommerce'))) {
+            return false;
+        }
+
+        $is_rest_builder = str_contains($request_uri, '/wp-json/wp/v2/')
+            || str_contains($request_uri, '/wp-json/elementor/');
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $req_action = isset($_REQUEST['action']) ? sanitize_key((string) $_REQUEST['action']) : '';
+        $is_ajax_builder = str_contains($request_uri, 'admin-ajax.php')
+            && ($req_action === 'elementor_ajax' || str_starts_with($req_action, 'elementor_'));
+
+        if (!$is_rest_builder && !$is_ajax_builder) {
+            return false;
+        }
+
+        // Verify standard WP REST nonce or Elementor AJAX nonce
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $rest_nonce = isset($_SERVER['HTTP_X_WP_NONCE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE'])) : (isset($_REQUEST['_wpnonce']) ? sanitize_text_field(wp_unslash($_REQUEST['_wpnonce'])) : '');
+        if ($is_rest_builder && $rest_nonce !== '' && function_exists('wp_verify_nonce')) {
+            return (bool) wp_verify_nonce($rest_nonce, 'wp_rest');
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $ajax_nonce = isset($_REQUEST['editor_post_id']) ? sanitize_text_field(wp_unslash($_REQUEST['editor_post_id'])) : (isset($_REQUEST['_nonce']) ? sanitize_text_field(wp_unslash($_REQUEST['_nonce'])) : (isset($_REQUEST['nonce']) ? sanitize_text_field(wp_unslash($_REQUEST['nonce'])) : ''));
+        if ($is_ajax_builder && $ajax_nonce !== '' && function_exists('wp_verify_nonce')) {
+            return (bool) (wp_verify_nonce($ajax_nonce, 'elementor_ajax') || wp_verify_nonce($ajax_nonce, 'wp_rest'));
+        }
+
+        return false;
+    }
+
+    /**
      * Check whether the current request is from an authenticated user with Content Editor privileges
      * or an active visual page builder session (Elementor, Divi, Gutenberg, Bricks, Beaver Builder).
      *
@@ -669,6 +709,11 @@ class FirewallEngine {
 
         // Fast-path: Verified administrator always has builder privileges
         if (self::is_authenticated_administrator()) {
+            return ($cached_builder_result = true);
+        }
+
+        $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        if (self::is_verified_editor_builder_request($req_uri)) {
             return ($cached_builder_result = true);
         }
 
@@ -999,9 +1044,13 @@ class FirewallEngine {
         // Red Team Drill Exception: Never bypass when drill token is present
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Passive inspection of drill token for red team simulation bypass
         $is_drill_request = !empty($_GET['webcare_drill_token']) || !empty($_POST['webcare_drill_token']) || !empty($_SERVER['HTTP_X_WEBCARE_DRILL_TOKEN']);
-        if (!$is_drill_request && self::is_authenticated_administrator()) {
-            $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/webcare-pro-security/') !== false);
-            if ($is_admin_path) {
+        if (!$is_drill_request) {
+            if (self::is_authenticated_administrator()) {
+                $is_admin_path = (is_admin() || strpos($request_uri, '/wp-admin/') !== false || strpos($request_uri, '/wp-json/webcare-pro-security/') !== false);
+                if ($is_admin_path) {
+                    return;
+                }
+            } elseif (self::is_verified_editor_builder_request($request_uri)) {
                 return;
             }
         }
@@ -6985,6 +7034,14 @@ class FirewallEngine {
      * @return void
      */
     public static function handle_rule_violation(array $rule, array $settings, string $client_ip, int $status_code = 403): void {
+        // Honor ModularFirewallSynthesizer runtime exempt rule IDs (WCP-14)
+        if (class_exists('\\WebCareProScanner\\Firewall\\Modular\\ModularFirewallSynthesizer')) {
+            $modular_exempt_ids = \WebCareProScanner\Firewall\Modular\ModularFirewallSynthesizer::get_runtime_exempt_rule_ids();
+            if (!empty($modular_exempt_ids) && !empty($rule['id']) && in_array((string) $rule['id'], $modular_exempt_ids, true)) {
+                return;
+            }
+        }
+
         // Red Team Drill Intercept Handler
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $drill_token = isset($_GET['webcare_drill_token']) ? sanitize_text_field(wp_unslash($_GET['webcare_drill_token'])) : (isset($_SERVER['HTTP_X_WEBCARE_DRILL_TOKEN']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WEBCARE_DRILL_TOKEN'])) : '');
@@ -7102,6 +7159,11 @@ class FirewallEngine {
 
         $incident_id = 'WEBCARE-' . strtoupper(substr(md5($client_ip . microtime(true) . wp_rand()), 0, 8));
         self::log_incident($rule, 'blocked', $incident_id);
+
+        // Record blocked probe for 60-second rolling velocity counter (OS-01)
+        if (class_exists('\\WebCareProScanner\\Firewall\\CAF\\OriginLoadCircuitBreaker')) {
+            \WebCareProScanner\Firewall\CAF\OriginLoadCircuitBreaker::record_blocked_probe();
+        }
 
         // Record differential threat score event & trigger immediate Cloudflare Edge Ban on critical exploits
         $rule_id_str = (string) ($rule['id'] ?? '');
@@ -9736,7 +9798,7 @@ class FirewallEngine {
         }
 
         $raw_c = isset($_COOKIE['webcare_preload_auth']) && is_string($_COOKIE['webcare_preload_auth'])
-            ? trim((string) $_COOKIE['webcare_preload_auth'])
+            ? trim(sanitize_text_field(wp_unslash($_COOKIE['webcare_preload_auth'])))
             : '';
         $needs_refresh = true;
 

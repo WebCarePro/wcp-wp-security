@@ -33,6 +33,17 @@ class ModularFirewallSynthesizer {
     const OPTION_AUTOPILOT_OBS = 'webcareproscan_modular_autopilot_obs';
     const OPTION_CUSTOM_SEQ    = 'webcareproscan_modular_custom_rule_seq';
 
+    private static array $runtime_exempt_rule_ids = [];
+
+    /**
+     * Get rule IDs exempted by allow/exemption rules during the current request evaluation.
+     *
+     * @return array
+     */
+    public static function get_runtime_exempt_rule_ids(): array {
+        return self::$runtime_exempt_rule_ids;
+    }
+
     /**
      * Check whether Smart 48-Hour Auto-Pilot is enabled.
      */
@@ -1124,6 +1135,7 @@ class ModularFirewallSynthesizer {
      * @return array|null Returns violation array if blocked/monitored, null if safe.
      */
     public static function evaluate_runtime_modular_rules(): ?array {
+        self::$runtime_exempt_rule_ids = [];
         $rules = self::get_active_rules();
         if (empty($rules)) {
             return null;
@@ -1291,6 +1303,9 @@ class ModularFirewallSynthesizer {
                             );
                         } else {
                             $exempt_ids = array_values(array_unique(array_merge($exempt_ids, $ex)));
+                            if ($mode === 'enforce' && !$is_rescue_paused) {
+                                self::$runtime_exempt_rule_ids = array_values(array_unique(array_merge(self::$runtime_exempt_rule_ids, $ex)));
+                            }
                         }
                         continue;
                     }
@@ -1464,7 +1479,10 @@ class ModularFirewallSynthesizer {
                 foreach ($flat_files as $f_item) {
                     $fname   = (string) ($f_item['name'] ?? '');
                     $fname_l = strtolower($fname);
-                    if ($fname_l !== '' && preg_match('/\.(?:php\d*|phtml|phar|pgif|htaccess|user\.ini|sh|pl|py|cgi|asp|aspx)\b/i', $fname_l)) {
+                    $is_uploader = function_exists('current_user_can') && current_user_can('upload_files');
+                    $is_danger   = preg_match('/\.(?:php\d*|phtml|phar|pgif|htaccess|user\.ini|cgi|asp|aspx)\b/i', $fname_l)
+                        || (!$is_uploader && preg_match('/\.(?:sh|pl|py)\b/i', $fname_l));
+                    if ($fname_l !== '' && $is_danger) {
                         return self::build_violation(
                             $r,
                             sprintf('Dangerous executable upload filename "%s" blocked by Modular Upload Guard [%s].', sanitize_file_name($fname), $r['id']),
@@ -1499,7 +1517,11 @@ class ModularFirewallSynthesizer {
                     } elseif (is_array($raw_json_data) && isset($raw_json_data[$pk]) && is_string($raw_json_data[$pk])) {
                         $val = strtolower(trim(sanitize_text_field((string) $raw_json_data[$pk])));
                     }
-                    if ($val !== '' && preg_match('#^(?:file|gopher|dict|ftp|ldap|tftp)://|(?:\b169\.254\.169\.254\b|\b127\.\d+\.\d+\.\d+\b|\blocalhost\b|\b0\.0\.0\.0\b|\[::1\]|\bmetadata\.google\.internal\b)#i', $val)) {
+                    $is_local_site_url = ($val !== '') && (
+                        (function_exists('home_url') && str_starts_with($val, strtolower(home_url())))
+                        || (function_exists('site_url') && str_starts_with($val, strtolower(site_url())))
+                    );
+                    if ($val !== '' && !$is_local_site_url && preg_match('#^(?:file|gopher|dict|ftp|ldap|tftp)://|(?:\b169\.254\.169\.254\b|\b127\.\d+\.\d+\.\d+\b|\blocalhost\b|\b0\.0\.0\.0\b|\[::1\]|\bmetadata\.google\.internal\b)#i', $val)) {
                         return self::build_violation(
                             $r,
                             sprintf('SSRF target in parameter "%s" blocked by Modular Egress Lock [%s].', $pk, $r['id']),
@@ -1514,8 +1536,21 @@ class ModularFirewallSynthesizer {
             if ($cat === 'cve_patch' && !$is_logged_in) {
                 $slug_lc   = strtolower(str_replace('-', '_', (string) ($r['component_slug'] ?? ($r['target_uri'] ?? ''))));
                 $slug_dash = strtolower((string) ($r['component_slug'] ?? ($r['target_uri'] ?? '')));
-                $hits_comp = ($slug_dash !== '' && (str_contains($clean_uri, $slug_dash) || ($rest_query !== '' && str_contains($rest_query, $slug_dash))))
-                    || ($slug_lc !== '' && $req_action !== '' && str_contains($req_action, $slug_lc));
+                $hits_comp = (
+                    $slug_dash !== '' && (
+                        str_contains($clean_uri, '/wp-content/plugins/' . $slug_dash . '/')
+                        || str_contains($clean_uri, '/wp-content/themes/' . $slug_dash . '/')
+                        || str_contains($clean_uri, '/wp-json/' . $slug_dash)
+                        || ($rest_query !== '' && (str_starts_with(ltrim($rest_query, '/'), $slug_dash . '/') || ltrim($rest_query, '/') === $slug_dash))
+                    )
+                ) || (
+                    $slug_lc !== '' && $req_action !== '' && (
+                        $req_action === $slug_lc
+                        || str_starts_with($req_action, $slug_lc . '_')
+                        || str_starts_with($req_action, $slug_dash . '_')
+                        || str_starts_with($req_action, $slug_dash . '/')
+                    )
+                );
 
                 if ($hits_comp) {
                     // Check upload of executable PHP scripts + common CVE exploit payloads (LFI, SQLi, PHP Object Injection)

@@ -1116,7 +1116,9 @@ class RemediationManager {
         }
 
         // Atomically move restored backup to original path
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic move of staging file
         if (!@rename($temp_dest, $original_path)) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Fallback copy when rename across filesystems fails
             if (!@copy($temp_dest, $original_path)) {
                 wp_delete_file($temp_dest);
                 return ['success' => false, 'message' => 'Could not restore backup to original path. Check write permissions.'];

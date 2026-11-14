@@ -326,6 +326,7 @@ class SecretVault {
      * @param string|null $binary_key Optional explicit key; uses self::get_key() if omitted
      * @return array ['success' => bool, 'error' => string, 'sha256' => string, 'bytes' => int, 'chunks' => int]
      */
+    // phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_fopen, WordPress.WP.AlternativeFunctions.file_system_operations_fclose, WordPress.WP.AlternativeFunctions.file_system_operations_fwrite, WordPress.WP.AlternativeFunctions.file_system_operations_fread, WordPress.WP.AlternativeFunctions.file_system_operations_chmod, WordPress.WP.AlternativeFunctions.rename_rename -- Low-level streaming binary chunked cryptographic operations require direct file handle I/O
     public static function encrypt_file_to_vault(string $src_path, string $dest_path, ?string $binary_key = null): array {
         if (!file_exists($src_path) || !is_file($src_path)) {
             return ['success' => false, 'error' => 'Source file does not exist or is not a regular file.'];
@@ -752,4 +753,5 @@ class SecretVault {
             'format' => 'LEGACY_PLAINTEXT',
         ];
     }
+    // phpcs:enable WordPress.WP.AlternativeFunctions.file_system_operations_fopen, WordPress.WP.AlternativeFunctions.file_system_operations_fclose, WordPress.WP.AlternativeFunctions.file_system_operations_fwrite, WordPress.WP.AlternativeFunctions.file_system_operations_fread, WordPress.WP.AlternativeFunctions.file_system_operations_chmod, WordPress.WP.AlternativeFunctions.rename_rename
 }

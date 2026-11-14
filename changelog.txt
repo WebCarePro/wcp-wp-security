@@ -1,4 +1,35 @@
 ﻿v:2.14.0 - 2026-11-14
+- Origin Survival Mode Velocity & Edge Defense Escalation (OS-01, OS-02, OS-03):
+  * OS-01 (Rolling 60-Second Block Velocity Buffer):
+    - Replaced flawed 24-hour total division ($blocked_today / 60) with a real 60-second rolling window transient bucket (webcare_waf_60s_bucket) in OriginLoadCircuitBreaker::record_blocked_probe().
+    - Integrated probe recording directly into FirewallEngine::handle_rule_violation(), eliminating false triggers of Cloudflare Under Attack Mode on high-traffic sites during quiet periods.
+  * OS-02 (Core-Scaled CPU Thresholds & Memory Pressure Integration):
+    - Added OriginLoadCircuitBreaker::detect_cpu_cores() checking /proc/cpuinfo (defaulting to 2 on shared hosting).
+    - Normalized effective CPU load threshold scaled by core count ($cores * 1.5, min 4.0), and integrated memory ratio pressure (>= 90% of memory_limit with probe velocity >= 40/min).
+  * OS-03 (Cloudflare Security Level Snapshot & Confirmed Edge State):
+    - Added prior security_level snapshotting via Cloudflare API GET in escalate_edge_defense() before setting 'under_attack'.
+    - Gated state updates on confirmed Cloudflare API PATCH or CAF slot deployment success.
+    - Restored the exact snapshotted prior security level upon de-escalation rather than hardcoding 'medium'.
+- Outbound SSRF & Egress Protection Hardening (SSRF-01, WCP-15):
+  * SSRF-01 (Canonical Host Binding for Outbound Loopbacks):
+    - Hardened OutboundEgressFirewall to restrict $is_same_host strictly to canonical home_url() and site_url() domains.
+    - Prohibited arbitrary localhost / 127.0.0.1 / ::1 loopback requests on production domains unless the WordPress site itself is hosted on local interfaces.
+  * WCP-15 (Same-Origin Exemption in Modular Egress Lock):
+    - Permitted outbound target URLs matching home_url() or site_url() in ModularFirewallSynthesizer egress lock, preventing loopback false positives during internal REST or AJAX calls.
+- MCP Audit Secret Redaction (MCP-01):
+  * MCP-01 (Value-Based Secret Pattern Masking):
+    - Upgraded MCPAgentService::redact_recursive() with regex scanning for secret values inside arbitrary parameter keys (webcare_gcm:, wcp_enc_, Bearer, sk-, rk-, pk_, ghp_, gho_, github_pat_, xox*, AIza*, and 32-128 char hex digests).
+    - Replaces sensitive payloads with '[REDACTED_SECRET_VALUE]' while preserving safe auditing of benign parameters.
+- Modular WAF False-Positive Guards & Nonce Safe-Pass (WCP-12, WCP-14, WCP-15, WCP-16):
+  * WCP-12 (Path-Anchored CVE Rule Matching):
+    - Anchored MOD-CVE-* component matching to plugin/theme directories (/wp-content/plugins/<slug>/, /wp-content/themes/<slug>/) and REST namespaces (/wp-json/<slug>), preventing false positives on generic frontend pages like /shop/ or /tutor/.
+  * WCP-14 (Runtime Exemption Propagation):
+    - Added ModularFirewallSynthesizer::get_runtime_exempt_rule_ids() to collect rule IDs exempted by custom allow rules.
+    - Enforced exemption checks in FirewallEngine::handle_rule_violation() to skip downstream core rule terminations when a modular exemption applies.
+  * WCP-15 (Upload Guard Capability Checks):
+    - Permitted non-PHP administrative file uploads (.sh, .pl, .py) for users with upload_files capability while strictly retaining zero-tolerance blocks on executable web scripts (.php*, .phtml, .phar, .htaccess, .user.ini).
+  * WCP-16 (Editor & Page Builder Nonce-Backed Safe-Pass):
+    - Added FirewallEngine::is_verified_editor_builder_request() granting safe-pass to authenticated Editors, Authors, and Shop Managers in Elementor and WP REST endpoints with verified nonces (wp_rest or elementor_ajax), while keeping RASP privilege escalation protections active.
 - Unified Streaming AEAD Encryption & Transactional Quarantine/Remediation (Q-01 through Q-04, TR-01 through TR-03, WCP-04):
   * Q-02 & Q-03 (Unified 1 MB Chunked Streaming AEAD Encryption):
     - Implemented SecretVault::encrypt_file_to_vault() and SecretVault::decrypt_vault_to_file() using AES-256-GCM chunked streaming (1 MB frames) with format header '// WEBCARE_VAULT_FORMAT:V2_CHUNKED_GCM'.

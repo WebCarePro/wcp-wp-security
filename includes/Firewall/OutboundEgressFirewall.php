@@ -415,7 +415,11 @@ class OutboundEgressFirewall {
                 $restricted_internal_ports[] = 25;
             }
 
-            $is_same_host = ($host === $site_host) || in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+            $admin_site_host = strtolower((string) (wp_parse_url(site_url(), PHP_URL_HOST) ?: $site_host));
+            $canonical_hosts = array_unique(array_filter([$site_host, $admin_site_host]));
+            $site_is_local   = !empty(array_intersect($canonical_hosts, ['localhost', '127.0.0.1', '::1']));
+            $is_same_host    = in_array($host, $canonical_hosts, true)
+                || ($site_is_local && in_array($host, ['localhost', '127.0.0.1', '::1'], true));
             $normalized_req_path = '/' . ltrim($request_path, '/');
             $is_wp_cron_or_loopback = (
                 $normalized_req_path === '/wp-cron.php' ||

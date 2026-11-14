@@ -954,9 +954,35 @@ class MCPAgentService {
         if (is_array($data)) {
             $out = [];
             foreach ($data as $k => $v) {
-                if (preg_match('/(?:pass|token|secret|key|auth|webhook|cookie|nonce|pwd)/i', (string) $k)) {
+                $kl = strtolower((string) $k);
+                if (
+                    str_contains($kl, 'pass')
+                    || str_contains($kl, 'token')
+                    || str_contains($kl, 'secret')
+                    || str_contains($kl, 'key')
+                    || str_contains($kl, 'auth')
+                    || str_contains($kl, 'webhook')
+                    || str_contains($kl, 'cookie')
+                    || str_contains($kl, 'nonce')
+                    || str_contains($kl, 'pwd')
+                ) {
                     $out[$k] = '[REDACTED]';
-                } elseif (is_array($v) && $depth >= 2) {
+                } elseif (is_string($v)) {
+                    $trimmed = trim($v);
+                    if (
+                        str_starts_with($trimmed, 'webcare_gcm:')
+                        || str_starts_with($trimmed, 'wcp_enc_')
+                        || preg_match('/^Bearer\s+\S+/i', $trimmed)
+                        || preg_match('/^(?:sk-|rk-|pk_|ghp_|gho_|github_pat_|xox[baprs]-|AIza[0-9A-Za-z\-_]{20,})/', $trimmed)
+                        || (strlen($trimmed) >= 32 && preg_match('/^[A-Fa-f0-9]{32,128}$/', $trimmed))
+                    ) {
+                        $out[$k] = '[REDACTED_SECRET_VALUE]';
+                    } elseif (strlen($v) > 120) {
+                        $out[$k] = substr($v, 0, 120) . '...';
+                    } else {
+                        $out[$k] = $v;
+                    }
+                } elseif (is_array($v) && $depth >= 3) {
                     $out[$k] = '[Array(' . count($v) . ')]';
                 } else {
                     $out[$k] = self::redact_recursive($v, $depth + 1);
@@ -964,8 +990,21 @@ class MCPAgentService {
             }
             return $out;
         }
-        if (is_string($data) && strlen($data) > 60) {
-            return substr($data, 0, 57) . '...';
+        if (is_string($data)) {
+            $trimmed = trim($data);
+            if (
+                str_starts_with($trimmed, 'webcare_gcm:')
+                || str_starts_with($trimmed, 'wcp_enc_')
+                || preg_match('/^Bearer\s+\S+/i', $trimmed)
+                || preg_match('/^(?:sk-|rk-|pk_|ghp_|gho_|github_pat_|xox[baprs]-|AIza[0-9A-Za-z\-_]{20,})/', $trimmed)
+                || (strlen($trimmed) >= 32 && preg_match('/^[A-Fa-f0-9]{32,128}$/', $trimmed))
+            ) {
+                return '[REDACTED_SECRET_VALUE]';
+            }
+            if (strlen($data) > 120) {
+                return substr($data, 0, 120) . '...';
+            }
+            return $data;
         }
         return $data;
     }

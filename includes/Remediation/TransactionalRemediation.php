@@ -405,9 +405,12 @@ class TransactionalRemediation {
                 }
 
                 // Atomically move restored file into place
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic move of staging file
                 if (!@rename($temp_restore, $target_abs)) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Fallback copy when rename across filesystems fails
                     if (!@copy($temp_restore, $target_abs)) {
                         wp_delete_file($temp_restore);
+                        /* translators: %s: Base filename of the target file being restored */
                         $errors[] = sprintf(__('Failed to restore file: %s', 'webcare-pro-security'), basename($target_abs));
                         continue;
                     }

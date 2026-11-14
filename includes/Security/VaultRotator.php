@@ -592,7 +592,9 @@ class VaultRotator {
                 }
 
                 // Atomically swap in re-encrypted vault archive
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic swap of rotated archive
                 if (!@rename($temp_reenc, $file_path)) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Fallback copy when rename across filesystems fails
                     if (!@copy($temp_reenc, $file_path)) {
                         wp_delete_file($temp_reenc);
                         $result['failed'][] = 'archive:' . basename($file_path);
