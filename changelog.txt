@@ -16,6 +16,7 @@
     - Required both an authorized WordPress loopback path and a verified site port for same-host requests, blocking internal SSRF attacks targeting sensitive services (e.g. Redis, Docker, Consul).
   * WCP-04 (Comprehensive Secret-Key Vault Rotation):
     - Expanded VaultRotator field registry to cover deepseek_api_key, openrouter_api_key, mcp_token, tamper_webhook_url, dynamic encrypted settings, and encrypted disk archives (<20 MB quarantined files and remediation backups).
+    - Cleaned up redundant transitional key references in verify_and_commit() for clean PHP 8.3/8.4 execution.
   * WCP-05 (Recursive Telemetry Prompt Injection Sanitization):
     - Fixed scanner result key mapping (is_safe and risk_score) in PromptInjectionGuard.
     - Added recursive branch taint tracking so numeric array elements and nested fields under untrusted keys are safely neutralized.

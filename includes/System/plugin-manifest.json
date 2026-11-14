@@ -1,6 +1,6 @@
 {
   "version": "2.14.0",
-  "generated_at": "2026-11-13T23:56:07.107Z",
+  "generated_at": "2026-11-14T00:10:43.200Z",
   "algorithm": "sha256",
   "files": {
     "assets/cubes.svg": {
@@ -768,8 +768,8 @@
       "size": 13546
     },
     "includes/Security/VaultRotator.php": {
-      "sha256": "1deb7511a8565167eaad853c3e1924966a30964b12224b0adde87c802b9b76f7",
-      "size": 23650
+      "sha256": "673ba5e71536edce92c7491f3e77c6345241b05c7c6a2cc82eafc01357037f14",
+      "size": 23448
     },
     "includes/SupplyChain/InstallRiskAdvisor.php": {
       "sha256": "efd655f0d6222111f6e9ef7e16f6018f4d198289d78b14680d2d48e38ab64793",

@@ -224,9 +224,6 @@ class VaultRotator {
             return new \WP_Error('keys_missing', $state['last_error']);
         }
 
-        $old_binary_key = strlen($old_key) === 32
-            ? $old_key
-            : (strlen($old_key) === 64 && ctype_xdigit($old_key) ? (string) hex2bin($old_key) : hash('sha256', $old_key, true));
         $new_binary_key = strlen($new_key) === 32
             ? $new_key
             : (strlen($new_key) === 64 && ctype_xdigit($new_key) ? (string) hex2bin($new_key) : hash('sha256', $new_key, true));
