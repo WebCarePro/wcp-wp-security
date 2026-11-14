@@ -2117,30 +2117,70 @@ class FirewallEngine {
         $referer = isset($_SERVER['HTTP_REFERER']) ? (string) wp_unslash($_SERVER['HTTP_REFERER']) : '';
 
         // Two-Tier Privilege Architecture (Finding 1):
-        // Authenticated administrators performing backend actions and verified page-builder sessions
-        // are exempt ONLY from HTML/formatting heuristic checks (such as raw <script>/<iframe> XSS rules
-        // when saving post templates). Mandatory zero-tolerance exploit protections (SQLi, RCE, LFI, Object Injection)
-        // execute unconditionally across 100% of requests, even for administrators and page builders.
-        $is_admin_backend          = is_admin() || strpos($raw_uri, '/wp-admin/') !== false;
-        $is_admin_backend_action   = self::is_authenticated_administrator() && $is_admin_backend;
-        $is_builder_saving_action  = self::is_authenticated_editor_or_builder();
-        $is_privileged_html_author = ($is_admin_backend_action || $is_builder_saving_action);
+        // Two-Tier Privilege Architecture:
+        // Authenticated administrators and verified page-builder sessions are exempt ONLY from HTML/formatting
+        // heuristic checks (such as raw <script>/<iframe> XSS rules and AI prompt-injection syntax when saving
+        // post templates or WAF rules). Mandatory zero-tolerance exploit protections (SQLi, RCE, LFI, Object Injection)
+        // execute unconditionally across 100% of requests without early return bypasses.
+        $req_method_upper = isset($_SERVER['REQUEST_METHOD'])
+            ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD'])))
+            : 'GET';
 
-        // Legitimate plugin management exception (Finding 2):
-        // Allow authenticated administrators saving WebCare WAF settings or custom regex signatures
-        // via explicit write endpoints without self-interception. All other WebCare REST routes (e.g. scans,
-        // logs, telemetry, quarantine, etc.) and all GET/read requests run full inspection.
-        $req_method_upper = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'GET';
-        $is_waf_rule_write_route = in_array($req_method_upper, ['POST', 'PUT', 'PATCH'], true) && (
-            strpos($raw_uri, 'webcare-pro-security') !== false && (
-                strpos($raw_uri, '/settings') !== false ||
-                strpos($raw_uri, '/modular-waf/rule') !== false ||
-                strpos($raw_uri, '/wizard/save') !== false
-            )
-        );
-        if (self::is_authenticated_administrator() && $is_waf_rule_write_route) {
-            return null;
+        // Resolve exact REST route path separately from query string (Section 1 Guidelines)
+        $parsed_path = (string) (wp_parse_url($raw_uri, PHP_URL_PATH) ?? '');
+        $resolved_rest_route = '';
+        if (preg_match('#/wp-json(/[^?]+)#i', $parsed_path, $rm)) {
+            $resolved_rest_route = '/' . trim($rm[1], '/');
+        } elseif (isset($_GET['rest_route']) && is_string($_GET['rest_route'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Passive route resolution
+            $resolved_rest_route = '/' . trim(sanitize_text_field(wp_unslash($_GET['rest_route'])), '/');
         }
+
+        $exact_waf_config_write_routes = [
+            '/webcare-pro-security/v1/settings',
+            '/webcare-pro-security/v1/settings/import',
+            '/webcare-pro-security/v1/modular-waf/rule/custom',
+            '/webcare-pro-security/v1/modular-waf/rule/parse-wirefilter',
+            '/webcare-pro-security/v1/modular-waf/rule/parse-ai',
+            '/webcare-pro-security/v1/modular-waf/rule/ai-generate',
+            '/webcare-pro-security/v1/modular-waf/rule/simulate',
+            '/webcare-pro-security/v1/wizard/save',
+        ];
+
+        $has_valid_rest_nonce = false;
+        $rest_nonce = !empty($_SERVER['HTTP_X_WP_NONCE'])
+            ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE']))
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            : (isset($_REQUEST['_wpnonce']) ? sanitize_text_field(wp_unslash($_REQUEST['_wpnonce'])) : '');
+        if ($rest_nonce !== '' && function_exists('wp_verify_nonce')) {
+            $has_valid_rest_nonce = (bool) wp_verify_nonce($rest_nonce, 'wp_rest');
+        }
+
+        $is_waf_config_write = (
+            self::is_authenticated_administrator()
+            && $has_valid_rest_nonce
+            && in_array($req_method_upper, ['POST', 'PUT', 'PATCH'], true)
+            && $resolved_rest_route !== ''
+            && in_array($resolved_rest_route, $exact_waf_config_write_routes, true)
+        );
+
+        $is_core_post_editor_save = false;
+        if (
+            $req_method_upper === 'POST'
+            && preg_match('#/wp-admin/(?:post|post-new)\.php$#i', $parsed_path)
+            && self::is_authenticated_administrator()
+        ) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Passive verification of WordPress post-editor save nonce
+            $post_id_hint = isset($_POST['post_ID']) ? absint($_POST['post_ID']) : 0;
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            $post_nonce   = isset($_POST['_wpnonce']) ? sanitize_text_field(wp_unslash($_POST['_wpnonce'])) : '';
+            if ($post_id_hint > 0 && $post_nonce !== '' && function_exists('wp_verify_nonce')) {
+                $is_core_post_editor_save = (bool) wp_verify_nonce($post_nonce, 'update-post_' . $post_id_hint);
+            }
+        }
+
+        $is_builder_saving_action  = self::is_authenticated_editor_or_builder();
+        $is_privileged_html_author = ($is_core_post_editor_save || $is_builder_saving_action || $is_waf_config_write);
 
         // Combine request parameters for deep inspection (inspect raw inputs so WAF sees malicious script tags or encoding before sanitization)
         $params_to_check = [];
@@ -2159,6 +2199,9 @@ class FirewallEngine {
         if (!empty($_POST) && is_array($_POST)) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing
             $post_data = wp_unslash($_POST);
+            if ($is_waf_config_write) {
+                $post_data = self::redact_waf_config_expressions($post_data);
+            }
             // Mask scalar password fields from generic regex false-positives unless containing explicit SQLi or null-byte exploits
             foreach (['pwd', 'password', 'pass1', 'pass2', 'account_password'] as $pw_field) {
                 if (isset($post_data[$pw_field]) && is_string($post_data[$pw_field]) && strlen($post_data[$pw_field]) <= 128) {
@@ -2203,6 +2246,16 @@ class FirewallEngine {
                         return html_entity_decode('&#x' . $m[1] . ';', ENT_QUOTES, 'UTF-8');
                     }, $normalized_body);
                 }
+                // If this is a verified WAF config write, redact only the explicit rule expression/regex keys
+                // from the inspected payload copy so legitimate WAF rules never trigger false positives,
+                // while all other fields, headers, cookies, and URIs remain 100% strictly inspected.
+                if ($is_waf_config_write) {
+                    $json_data = json_decode($normalized_body, true);
+                    if (is_array($json_data)) {
+                        $sanitized_json = self::redact_waf_config_expressions($json_data);
+                        $normalized_body = (string) json_encode($sanitized_json);
+                    }
+                }
                 $params_to_check[] = $normalized_body;
 
                 // REST API Batch & Method-Override Normalization (CVE-2026-63030 / CVE-2026-60137 chain defense)
@@ -2216,7 +2269,14 @@ class FirewallEngine {
             if ($content_len > 262144) {
                 $raw_tail = (string) @file_get_contents('php://input', false, null, max(0, $content_len - 65536), 65536);
                 if ($raw_tail !== '') {
-                    $params_to_check[] = wp_unslash($raw_tail);
+                    $tail_body = wp_unslash($raw_tail);
+                    if ($is_waf_config_write) {
+                        $json_tail = json_decode($tail_body, true);
+                        if (is_array($json_tail)) {
+                            $tail_body = (string) json_encode(self::redact_waf_config_expressions($json_tail));
+                        }
+                    }
+                    $params_to_check[] = $tail_body;
                 }
             }
         }
@@ -9667,6 +9727,35 @@ class FirewallEngine {
                 'timestamp'   => current_time('mysql'),
             ]);
         }
+    }
+
+    /**
+     * Recursively mask known WAF rule regex / pattern expression fields during verified admin settings writes
+     * so configuring security patterns does not self-block, while preserving deep inspection on all other keys.
+     *
+     * @param array $data Input payload data.
+     * @return array Data with expression fields redacted.
+     */
+    public static function redact_waf_config_expressions(array $data): array {
+        $keys_to_redact = [
+            'conditions',
+            'wirefilter',
+            'expression',
+            'pattern',
+            'regex',
+            'waf_whitelisted_urls',
+            'waf_targeted_allowlist_rules',
+            'waf_allowed_host_aliases',
+        ];
+        foreach ($data as $k => $v) {
+            $k_lower = is_string($k) ? strtolower($k) : '';
+            if (in_array($k_lower, $keys_to_redact, true)) {
+                unset($data[$k]);
+            } elseif (is_array($v)) {
+                $data[$k] = self::redact_waf_config_expressions($v);
+            }
+        }
+        return $data;
     }
 
     /**

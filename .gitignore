@@ -33,6 +33,7 @@ roadmap plan.md
 *review*.md
 *guideline*.md
 *guidelines*.md
+*final_fix*.md
 
 # Frontend Source (compiled files in build/ are deployed)
 src/
