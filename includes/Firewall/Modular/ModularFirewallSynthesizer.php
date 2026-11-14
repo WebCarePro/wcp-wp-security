@@ -1331,9 +1331,10 @@ class ModularFirewallSynthesizer {
         }
         $is_logged_in = function_exists('is_user_logged_in') && is_user_logged_in();
         $is_admin     = $is_fw_admin || ($is_logged_in && function_exists('current_user_can') && current_user_can('manage_options'));
-        if ($is_admin) {
-            return null;
-        }
+        // Two-Tier Privilege Architecture (Finding 1):
+        // Do not return null here. Pass $is_admin down so Phase A custom enforcement rules and Phase C critical locks
+        // (abspath_lock, tamper_guard, upload_guard) execute unconditionally, while only skipping
+        // Phase C operational heuristics (ajax_shield, rest_guard, cve_patch, egress_lock) for verified admins.
 
         $clean_uri = strtolower((string) strtok($uri, '?'));
         if (
@@ -1416,6 +1417,7 @@ class ModularFirewallSynthesizer {
             $should_block = ($mode === 'enforce') && !$is_rescue_paused;
             $methods      = is_array($r['http_methods'] ?? null) ? array_map('strtoupper', $r['http_methods']) : [];
             $matched_custom = false;
+            $rule_eval_failed_closed = false;
 
             try {
                 if (!empty($r['conditions']) && is_array($r['conditions']) && class_exists(VisualRuleExpressionEngine::class)) {
@@ -1752,9 +1754,9 @@ class ModularFirewallSynthesizer {
             $cat     = $r['category'] ?? '';
             $rule_id = (string) ($r['id'] ?? '');
 
-            // Critical system locks (abspath_lock, tamper_guard, upload_guard) CANNOT be suppressed by $exempt_all_heuristics, exemptions, or rescue pause (Finding 4)
+            // Critical system locks (abspath_lock, tamper_guard, upload_guard) CANNOT be suppressed by $is_admin, $exempt_all_heuristics, exemptions, or rescue pause (Finding 1 & 4)
             $is_critical_lock = in_array($cat, ['abspath_lock', 'tamper_guard', 'upload_guard'], true);
-            if (!$is_critical_lock && $exempt_all_heuristics) {
+            if (!$is_critical_lock && ($is_admin || $exempt_all_heuristics)) {
                 continue;
             }
 

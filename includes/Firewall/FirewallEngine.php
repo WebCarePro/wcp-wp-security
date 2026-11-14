@@ -707,11 +707,6 @@ class FirewallEngine {
             return ($cached_builder_result = false);
         }
 
-        // Fast-path: Verified administrator always has builder privileges
-        if (self::is_authenticated_administrator()) {
-            return ($cached_builder_result = true);
-        }
-
         $req_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
         if (self::is_verified_editor_builder_request($req_uri)) {
             return ($cached_builder_result = true);
@@ -2127,14 +2122,23 @@ class FirewallEngine {
         // when saving post templates). Mandatory zero-tolerance exploit protections (SQLi, RCE, LFI, Object Injection)
         // execute unconditionally across 100% of requests, even for administrators and page builders.
         $is_admin_backend          = is_admin() || strpos($raw_uri, '/wp-admin/') !== false;
-        $is_webcare_rest_api       = (strpos($raw_uri, '/wp-json/webcare-pro-security/') !== false) || (defined('REST_REQUEST') && REST_REQUEST && strpos($raw_uri, 'webcare-pro-security') !== false);
-        $is_admin_backend_action   = self::is_authenticated_administrator() && ($is_admin_backend || $is_webcare_rest_api);
+        $is_admin_backend_action   = self::is_authenticated_administrator() && $is_admin_backend;
         $is_builder_saving_action  = self::is_authenticated_editor_or_builder();
         $is_privileged_html_author = ($is_admin_backend_action || $is_builder_saving_action);
 
-        // Legitimate plugin management exception: Allow authenticated administrators to configure WebCare WAF
-        // settings and save custom regex signatures via the WebCare REST API without false-positive self-interception
-        if (self::is_authenticated_administrator() && $is_webcare_rest_api) {
+        // Legitimate plugin management exception (Finding 2):
+        // Allow authenticated administrators saving WebCare WAF settings or custom regex signatures
+        // via explicit write endpoints without self-interception. All other WebCare REST routes (e.g. scans,
+        // logs, telemetry, quarantine, etc.) and all GET/read requests run full inspection.
+        $req_method_upper = isset($_SERVER['REQUEST_METHOD']) ? strtoupper(sanitize_key(wp_unslash($_SERVER['REQUEST_METHOD']))) : 'GET';
+        $is_waf_rule_write_route = in_array($req_method_upper, ['POST', 'PUT', 'PATCH'], true) && (
+            strpos($raw_uri, 'webcare-pro-security') !== false && (
+                strpos($raw_uri, '/settings') !== false ||
+                strpos($raw_uri, '/modular-waf/rule') !== false ||
+                strpos($raw_uri, '/wizard/save') !== false
+            )
+        );
+        if (self::is_authenticated_administrator() && $is_waf_rule_write_route) {
             return null;
         }
 

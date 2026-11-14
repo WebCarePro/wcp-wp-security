@@ -714,7 +714,7 @@ class MicroWafCompiler {
         $out .= "                    \$v_allow_rules[] = \$v_r;\n";
         $out .= "                } elseif (\$v_act_norm === 'block_and_ban' || !empty(\$v_r['sync_cloudflare'])) {\n";
         $out .= "                    \$v_block_ban_rules[] = \$v_r;\n";
-        $out .= "                } else {\n";
+        $out .= "                } elseif (\$v_act_norm === 'block') {\n";
         $out .= "                    \$v_block_rules[] = \$v_r;\n";
         $out .= "                }\n";
         $out .= "            }\n";
@@ -724,7 +724,7 @@ class MicroWafCompiler {
         $out .= "                \$v_id = (string) (\$v_rule['rule_id'] ?? 'MOD-CUSTOM');\n";
         $out .= "                if (in_array(\$v_id, \$trusted_visual, true) || in_array(\$v_id, \$vis_exempt_ids, true)) continue;\n";
         $out .= "                \$v_action  = strtolower(trim((string) (\$v_rule['action_type'] ?? 'block')));\n";
-        $out .= "                if (!in_array(\$v_action, ['block', 'block_and_ban', 'challenge_pow', 'rate_limit', 'monitor', 'allow'], true)) { \$v_action = 'block'; }\n";
+        $out .= "                if (!in_array(\$v_action, ['block', 'block_and_ban', 'allow'], true)) { continue; }\n";
         $out .= "                if (\$mod_has_login_cookie && \$v_action !== 'allow') {\n";
         $out .= "                    continue;\n";
         $out .= "                }\n";
